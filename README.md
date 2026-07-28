@@ -154,3 +154,4 @@ Publishing is protected by a **fail-closed safety gate**: the publish step only 
 ## Deployment
 
 This pipeline is designed to run unattended on a recurring schedule via GitHub Actions (or any scheduler capable of invoking `npm run run` on a timer). All credentials are supplied via environment variables at runtime — never committed to source control. In CI, these are stored as encrypted repository secrets; locally, they live in a gitignored `.env` file created from `.env.example`.
+# ai-blog-pooster
