@@ -1,0 +1,55 @@
+name: Autoblog Pipeline
+
+on:
+  # Manual trigger — lets you test a run on demand from the Actions tab
+  # without waiting for the schedule.
+  workflow_dispatch: {}
+
+  schedule:
+    # Cron is UTC, 5 fields: minute hour day-of-month month day-of-week.
+    # '0 7 * * *' = once per day at 07:00 UTC.
+    # To change frequency, edit the expression below. Examples:
+    #   '0 */6 * * *'  = every 6 hours
+    #   '0 7,19 * * *' = twice daily, 07:00 and 19:00 UTC
+    #   '0 7 * * 1-5'  = once daily on weekdays only
+    - cron: '0 7 * * *'
+
+# Prevents two runs from overlapping (e.g. a manual trigger firing while the
+# scheduled run is still in progress). New runs queue rather than cancel an
+# in-progress one, since cancelling mid-publish could leave a partial write.
+concurrency:
+  group: autoblog-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    # Non-secret pipeline behavior. Kept here (not as repository secrets) so
+    # they're easy to see and change without touching GitHub's secrets UI.
+    env:
+      COMPLIANCE_MODE: block
+      ARTICLES_PER_RUN: 1
+      PUBLISH_STATUS: draft
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run pipeline
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SHOPIFY_STORE_DOMAIN: ${{ secrets.SHOPIFY_STORE_DOMAIN }}
+          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+        run: npm run run
