@@ -6,13 +6,27 @@ on:
   workflow_dispatch: {}
 
   schedule:
-    # Cron is UTC, 5 fields: minute hour day-of-month month day-of-week.
-    # '0 7 * * *' = once per day at 07:00 UTC.
-    # To change frequency, edit the expression below. Examples:
-    #   '0 */6 * * *'  = every 6 hours
-    #   '0 7,19 * * *' = twice daily, 07:00 and 19:00 UTC
-    #   '0 7 * * 1-5'  = once daily on weekdays only
-    - cron: '0 7 * * *'
+    # Each scheduled run produces ARTICLES_PER_RUN (currently 1) article, so
+    # these three entries give 3 articles/day total. To change the daily
+    # count, add/remove cron+timezone pairs below (or raise ARTICLES_PER_RUN
+    # instead, to produce more articles per run rather than more runs).
+    #
+    # timezone: uses GitHub Actions' native timezone field so Europe/Sofia
+    # daylight saving (EET/EEST) is handled automatically — do NOT hardcode
+    # a UTC offset here, it would drift by an hour twice a year.
+    #
+    # Notes:
+    # - After committing, GitHub re-registers this schedule from the new file.
+    # - Scheduled (cron) runs only fire from the default branch (main) —
+    #   pushing this file to any other branch will not trigger runs.
+    # - GitHub's scheduler can lag 5-30 minutes under load, so articles may
+    #   appear slightly after the exact hour, not exactly on it.
+    - cron: '0 10 * * *'
+      timezone: 'Europe/Sofia'
+    - cron: '0 15 * * *'
+      timezone: 'Europe/Sofia'
+    - cron: '0 19 * * *'
+      timezone: 'Europe/Sofia'
 
 # Prevents two runs from overlapping (e.g. a manual trigger firing while the
 # scheduled run is still in progress). New runs queue rather than cancel an
