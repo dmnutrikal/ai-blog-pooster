@@ -31,11 +31,31 @@ const CLAIM_GUARDRAILS_BG = `
   живот."
 `.trim();
 
+const PRODUCT_LINK_INSTRUCTIONS_BG = `
+ЛИНК КЪМ ПРОДУКТ (по избор):
+- Ако по-долу е предоставен ПРОДУКТ, спомени го ТОЧНО ВЕДНЪЖ някъде в body_bg_html — вътре в
+  изречение, където естествено пасва на редакционния контекст (не в отделно, откроено
+  изречение накрая).
+- Спомени го като HTML връзка във формàта: <a href="URL">Точното българско име на продукта</a>,
+  като URL и името идват от предоставения ПРОДУКТ по-долу (използвай точно предоставеното
+  българско име като текст на връзката).
+- Това ТРЯБВА да звучи като естествено редакционно споменаване — например докато обясняваш
+  как хората обичайно приемат колагенови пептиди или каква форма избират — а НЕ като реклама
+  или като изречение от типа "разгледайте нашия продукт", добавено накрая.
+- НЕ добавяй никакви претенции за продукта в това изречение — важат същите регулаторни
+  ограничения (EC 1924/2006) като за останалата част от статията.
+- Максимум ЕДНА връзка към продукт в цялата статия.
+- Ако по-долу НЕ е предоставен ПРОДУКТ, не добавяй никаква връзка към продукт — статията
+  трябва да е напълно чиста от продуктови линкове.
+`.trim();
+
 const BG_SYSTEM_PROMPT = `
 You are an expert Bulgarian SEO content writer for CollagenLab, an e-commerce store selling
 collagen peptide food supplements in Bulgaria/the EU.
 
 ${CLAIM_GUARDRAILS_BG}
+
+${PRODUCT_LINK_INSTRUCTIONS_BG}
 
 TASK: Write a Bulgarian SEO blog article for the given keyword/angle.
 
@@ -83,12 +103,32 @@ REGULATORY GUARDRAILS — EU Regulation (EC) No 1924/2006 on nutrition and healt
   should not be used as a substitute for a varied and balanced diet and a healthy lifestyle."
 `.trim();
 
+const PRODUCT_LINK_INSTRUCTIONS_EN = `
+PRODUCT LINK (optional):
+- If a PRODUCT is provided below, mention it EXACTLY ONCE somewhere in body_en_html — inside a
+  sentence where it genuinely fits the editorial flow (not as a separate, tacked-on sentence at
+  the end).
+- Mention it as an HTML link in this exact form: <a href="URL">Exact Product Name</a>, using the
+  URL and name from the provided PRODUCT below (use the exact provided English name as the link
+  text).
+- This MUST read as a natural editorial mention — for example while explaining how people
+  typically take collagen peptides or what format they choose — NOT as an advertisement or a
+  "check out our product" line bolted on at the end.
+- Do NOT make any product claims in that sentence — the same regulatory guardrails (EC
+  1924/2006) apply to it as to the rest of the article.
+- Maximum ONE product link in the entire article.
+- If NO PRODUCT is provided below, do not add any product link at all — the article must be
+  completely free of product links.
+`.trim();
+
 const EN_SYSTEM_PROMPT = `
 You are an expert English SEO content writer for CollagenLab, an e-commerce store selling
 collagen peptide food supplements in the EU. English is this store's primary/canonical
 content language.
 
 ${CLAIM_GUARDRAILS_EN}
+
+${PRODUCT_LINK_INSTRUCTIONS_EN}
 
 TASK: Write a complete, high-quality, marketing-grade English SEO blog article for the given
 topic. This is NOT a translation or adaptation of another article — write an independently
@@ -114,28 +154,46 @@ or after. The JSON object must have exactly these keys:
 }
 `.trim();
 
-function buildBgPrompt(topic) {
+function buildProductLineBg(product) {
+  if (!product) {
+    return 'ПРОДУКТ: няма предоставен продукт — не добавяй връзка към продукт.';
+  }
+  const name = product.title_bg ?? product.title;
+  return `ПРОДУКТ (спомени максимум веднъж, само ако естествено пасва): "${name}" — ${product.url}`;
+}
+
+function buildProductLineEn(product) {
+  if (!product) {
+    return 'PRODUCT: none provided — do not add a product link.';
+  }
+  return `PRODUCT (mention at most once, only if it genuinely fits): "${product.title}" — ${product.url}`;
+}
+
+function buildBgPrompt(topic, product) {
   const angleLine = topic.angle
     ? `Ъгъл/фокус на статията: ${topic.angle}`
     : 'Няма зададен конкретен ъгъл — избери подходящ информативен фокус за темата.';
-  return `Ключова дума: ${topic.keyword}\n${angleLine}`;
+  return `Ключова дума: ${topic.keyword}\n${angleLine}\n${buildProductLineBg(product)}`;
 }
 
-function buildEnPrompt(topic) {
+function buildEnPrompt(topic, product) {
   const angleLine = topic.angle
     ? `Angle/focus (noted in Bulgarian — write about this same angle, natively in English): ${topic.angle}`
     : 'No specific angle given — choose an appropriate informative focus for the topic.';
-  return `Topic keyword (Bulgarian phrasing — translate the underlying concept, do not write in Bulgarian): ${topic.keyword}\n${angleLine}`;
+  return `Topic keyword (Bulgarian phrasing — translate the underlying concept, do not write in Bulgarian): ${topic.keyword}\n${angleLine}\n${buildProductLineEn(product)}`;
 }
 
 // topic: { keyword: string, angle: string | null }
+// product: the object returned by matchProduct.js (needs title, title_bg, url), or null/
+// undefined if no product cleared the relevance guards — in which case the article is
+// written with no product link at all.
 // English (primary/canonical) and Bulgarian (priority-market) are generated
 // independently and in parallel — neither is a translation/adaptation of the
 // other, both are full-quality articles under the same EC 1924/2006 guardrails.
-export async function writeArticle(topic) {
+export async function writeArticle(topic, { product = null } = {}) {
   const [bgArticle, enArticle] = await Promise.all([
-    generateJson({ system: BG_SYSTEM_PROMPT, prompt: buildBgPrompt(topic) }),
-    generateJson({ system: EN_SYSTEM_PROMPT, prompt: buildEnPrompt(topic) }),
+    generateJson({ system: BG_SYSTEM_PROMPT, prompt: buildBgPrompt(topic, product) }),
+    generateJson({ system: EN_SYSTEM_PROMPT, prompt: buildEnPrompt(topic, product) }),
   ]);
 
   return {

@@ -24,6 +24,9 @@ const ARTICLE_CREATE = `
       article {
         id
         handle
+        blog {
+          handle
+        }
       }
       userErrors {
         field
@@ -79,6 +82,13 @@ async function resolveBlogGid() {
       `Add BLOG_GID_COLLAGENLAB=${blog.id} to .env so future runs don't have to guess.`
   );
   return blog.id;
+}
+
+// Article has no onlineStoreUrl field on the Admin API (unlike Product), so the
+// public URL has to be constructed manually. Built entirely from the
+// articleCreate response (blog.handle) + config — zero extra Shopify calls.
+function publicUrlFor(createdArticle) {
+  return `https://${config.shopify.publicDomain}/blogs/${createdArticle.blog.handle}/${createdArticle.handle}`;
 }
 
 function adminUrlFor(articleGid) {
@@ -213,6 +223,7 @@ export async function publishArticle(article) {
   }
 
   const createdArticle = createData.articleCreate.article;
+  const articleUrl = publicUrlFor(createdArticle);
 
   try {
     await registerBulgarianTranslation(createdArticle.id, article);
@@ -244,6 +255,7 @@ export async function publishArticle(article) {
     topic_id: article.topic_id,
     shopify_gid: createdArticle.id,
     handle: createdArticle.handle,
+    url: articleUrl,
     title_bg: article.title_bg,
     title_en: article.title_en,
     summary_bg: article.summary_bg,

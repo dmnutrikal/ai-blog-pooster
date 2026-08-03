@@ -1,14 +1,35 @@
 import { pickTopic } from './steps/pickTopic.js';
+import { matchProduct } from './steps/matchProduct.js';
 import { writeArticle } from './steps/writeArticle.js';
 import { checkCompliance } from './steps/compliance.js';
-import { linkProducts } from './steps/linkProducts.js';
+import { linkArticles } from './steps/linkArticles.js';
 import { generateImage } from './steps/generateImage.js';
 import { publishArticle } from './steps/publish.js';
 import { supabase } from './lib/supabase.js';
 import { config } from './config.js';
 
+// The model is instructed to weave the product in only if it genuinely fits
+// (see writeArticle.js's PRODUCT_LINK_INSTRUCTIONS) — it may legitimately
+// skip a provided product. Checking for the URL in the finished HTML (rather
+// than trusting a flag from the model) is what actually decides what gets
+// recorded in linked_products.
+function articleLinksToProduct(article, product) {
+  if (!product) return false;
+  return (article.body_bg_html ?? '').includes(product.url) || (article.body_en_html ?? '').includes(product.url);
+}
+
 async function processTopic(topic) {
-  const written = await writeArticle({ keyword: topic.keyword, angle: topic.angle });
+  // Matched BEFORE writing so the model can weave the link into the prose
+  // itself, instead of a separate link snippet bolted on afterwards.
+  const product = await matchProduct({ keyword: topic.keyword, angle: topic.angle });
+
+  if (product) {
+    console.log(`  -> product match: "${product.title}" sim=${Number(product.similarity).toFixed(3)}`);
+  } else {
+    console.log('  -> product match: none cleared guards');
+  }
+
+  const written = await writeArticle({ keyword: topic.keyword, angle: topic.angle }, { product });
 
   const compliance = await checkCompliance(written);
   if (config.pipeline.complianceMode === 'block' && compliance.passed !== true) {
@@ -22,7 +43,9 @@ async function processTopic(topic) {
 
   let article = { ...written, compliance, topic_id: topic.id };
 
-  article = await linkProducts(article, topic);
+  article = await linkArticles(article, topic);
+  article.linked_products = articleLinksToProduct(article, product) ? [product.shopify_gid] : [];
+  console.log(`  -> product link woven into body: ${article.linked_products.length > 0}`);
 
   // generateImage() already fails soft internally (never throws, returns
   // imageUrl: null on any error) — this try/catch is a second safety net in

@@ -11,6 +11,7 @@ const REQUIRED_VARS = [
   'SHOPIFY_STORE_DOMAIN',
   'SHOPIFY_CLIENT_ID',
   'SHOPIFY_CLIENT_SECRET',
+  'STORE_PUBLIC_DOMAIN',
 ];
 
 function missingVars() {
@@ -61,6 +62,12 @@ export const config = {
   },
   shopify: {
     storeDomain: process.env.SHOPIFY_STORE_DOMAIN,
+    // The customer-facing storefront host used to build public URLs (article
+    // links, etc). NOT necessarily the same as storeDomain (the *.myshopify.com
+    // admin/API host) or the shop's primaryDomain — confirmed live for this
+    // store: products' onlineStoreUrl resolves on collagenlab.bg, which is
+    // neither the admin domain nor shop.primaryDomain (collagenlab.eu).
+    publicDomain: process.env.STORE_PUBLIC_DOMAIN,
     clientId: process.env.SHOPIFY_CLIENT_ID,
     clientSecret: process.env.SHOPIFY_CLIENT_SECRET,
     apiVersion: process.env.SHOPIFY_API_VERSION ?? '2026-07',

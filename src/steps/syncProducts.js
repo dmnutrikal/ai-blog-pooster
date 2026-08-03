@@ -60,7 +60,15 @@ async function fetchAllProducts() {
 function buildEmbeddingInput(product) {
   // TODO: tune this composite string if match_products relevance turns out
   // to weight some fields too heavily (e.g. tags dominating description).
-  return [product.title, product.description, product.productType, (product.tags ?? []).join(', ')]
+  const bg = bgTranslations(product);
+  return [
+    product.title,
+    bg.title,
+    product.description,
+    bg.body_html,
+    product.productType,
+    (product.tags ?? []).join(', '),
+  ]
     .filter(Boolean)
     .join('\n');
 }
