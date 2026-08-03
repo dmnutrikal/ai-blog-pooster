@@ -24,6 +24,10 @@ const PRODUCTS_QUERY = `
           productType
           tags
           onlineStoreUrl
+          translations(locale: "bg") {
+            key
+            value
+          }
         }
       }
       pageInfo {
@@ -61,17 +65,34 @@ function buildEmbeddingInput(product) {
     .join('\n');
 }
 
+// Reads the "bg" locale translation set nested on each product (see
+// PRODUCTS_QUERY's `translations(locale: "bg")`), keyed by field name.
+// Products with no Bulgarian translation registered in Shopify simply
+// produce an empty map here, so the *_bg columns stay null.
+function bgTranslations(product) {
+  const byKey = {};
+  for (const t of product.translations ?? []) {
+    byKey[t.key] = t.value;
+  }
+  return byKey;
+}
+
 function toRow(product, embedding) {
+  const bg = bgTranslations(product);
   return {
     store: STORE,
     shopify_gid: product.id,
     handle: product.handle,
     title: product.title,
+    title_bg: bg.title ?? null,
     description: product.description,
     product_type: product.productType,
     tags: product.tags,
     url: product.onlineStoreUrl,
     embedding,
+    // Not used anywhere yet — stored for future SEO/meta work.
+    meta_title_bg: bg.meta_title ?? null,
+    meta_description_bg: bg.meta_description ?? null,
   };
 }
 

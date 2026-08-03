@@ -45,7 +45,7 @@ export async function fetchCandidateArticles(queryEmbedding) {
 }
 
 function isAccessory(product) {
-  const haystack = `${product.title ?? ''} ${product.handle ?? ''} ${product.product_type ?? ''}`.toLowerCase();
+  const haystack = `${product.title_bg ?? product.title ?? ''} ${product.handle ?? ''} ${product.product_type ?? ''}`.toLowerCase();
   return config.linking.accessoryKeywords.some((keyword) => haystack.includes(keyword));
 }
 
@@ -74,9 +74,9 @@ export function applyGuards(products) {
 function buildProductLinksBg(products) {
   if (products.length === 0) return '';
   if (products.length === 1) {
-    return `<p>Разгледайте: <a href="${products[0].url}">${products[0].title}</a>.</p>`;
+    return `<p>Разгледайте: <a href="${products[0].url}">${products[0].title_bg ?? products[0].title}</a>.</p>`;
   }
-  const items = products.map((p) => `<li><a href="${p.url}">${p.title}</a></li>`).join('');
+  const items = products.map((p) => `<li><a href="${p.url}">${p.title_bg ?? p.title}</a></li>`).join('');
   return `<p>Разгледайте свързаните продукти:</p><ul>${items}</ul>`;
 }
 
