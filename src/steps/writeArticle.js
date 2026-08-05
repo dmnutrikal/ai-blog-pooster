@@ -26,6 +26,12 @@ const CLAIM_GUARDRAILS_BG = `
   тази одобрена претенция, тя ТРЯБВА да бъде приписана изрично на витамин C, с точно тази
   формулировка (или близък до нея коректен превод) — не измисляй здравни претенции за самите
   колагенови пептиди, тъй като те нямат одобрени претенции.
+- НИКОГА не използвай формулировки за ефективността на самия колаген от рода на "изследванията
+  показват обещаващи резултати за хидратацията/еластичността на кожата" или "доказано подобрява
+  кожата/ставите" — дори хеджирани с "може да" или "според някои изследвания". Единствената
+  претенция, свързана с колаген, която статията може да съдържа, е одобрената претенция за
+  витамин C по-горе; всичко останало за ролята на колагена трябва да остане чисто описателно
+  (структурен белтък, естествен спад на синтеза с възрастта) — без намек за резултат от прием.
 - Статията ТРЯБВА да включва естествено, близо до края, задължителното предупреждение:
   "Хранителните добавки не са заместител на разнообразното хранене и здравословния начин на
   живот."
@@ -33,9 +39,9 @@ const CLAIM_GUARDRAILS_BG = `
 
 const PRODUCT_LINK_INSTRUCTIONS_BG = `
 ЛИНК КЪМ ПРОДУКТ (по избор):
-- Ако по-долу е предоставен ПРОДУКТ, спомени го ТОЧНО ВЕДНЪЖ някъде в body_bg_html — вътре в
-  изречение, където естествено пасва на редакционния контекст (не в отделно, откроено
-  изречение накрая).
+- Ако по-долу е предоставен ПРОДУКТ, спомени го ТОЧНО ВЕДНЪЖ вътре в основния текст на
+  body_bg_html — в изречение, където естествено пасва на редакционния контекст (не в отделно,
+  откроено изречение накрая).
 - Спомени го като HTML връзка във формàта: <a href="URL">Точното българско име на продукта</a>,
   като URL и името идват от предоставения ПРОДУКТ по-долу (използвай точно предоставеното
   българско име като текст на връзката).
@@ -44,9 +50,22 @@ const PRODUCT_LINK_INSTRUCTIONS_BG = `
   или като изречение от типа "разгледайте нашия продукт", добавено накрая.
 - НЕ добавяй никакви претенции за продукта в това изречение — важат същите регулаторни
   ограничения (EC 1924/2006) като за останалата част от статията.
-- Максимум ЕДНА връзка към продукт в цялата статия.
+- Само ЕДНА такава естествена, вплетена в текста връзка в цялата статия.
 - Ако по-долу НЕ е предоставен ПРОДУКТ, не добавяй никаква връзка към продукт — статията
   трябва да е напълно чиста от продуктови линкове.
+
+ЗАКЛЮЧИТЕЛЕН CTA (само ако е предоставен ПРОДУКТ):
+- В допълнение към естественото споменаване по-горе, добави точно ЕДИН отделен ред с покана за
+  действие (call-to-action), позициониран непосредствено ПРЕДИ задължителния абзац с
+  предупреждението за хранителни добавки в самия край на статията.
+- Формат: кратко изречение в <p>, съдържащо HTML връзка към ПРОДУКТА, с естествен текст на
+  връзката, включващ името на продукта — например: <p>Започнете своя ежедневен ритуал с
+  <a href="URL">Точното българско име на продукта</a>.</p>
+- Този ред е чисто поканващ (CTA) — НЕ съдържа никаква здравна или ефективностна претенция за
+  продукта, само покана да се разгледа/пробва.
+- Резултат: когато е предоставен продукт, статията съдържа точно ДВА линка към него — едното
+  естествено вплетено споменаване в тялото и този отделен CTA ред точно преди предупреждението.
+  Ако НЕ е предоставен продукт, не добавяй никакъв CTA ред.
 `.trim();
 
 const BG_SYSTEM_PROMPT = `
@@ -64,8 +83,22 @@ REQUIREMENTS:
   copywriter — not translated-sounding.
 - H1 title (title_bg): compelling, includes the keyword naturally.
 - meta_bg: meta description, <= 155 characters.
-- body_bg_html: 600-900 words, valid HTML using only <h2>, <h3>, <p>, <ul>/<li>. No <h1> in
-  the body (the title is separate). No inline styles, no <script>, no other tags.
+- body_bg_html: TARGET LENGTH ~1500-2200 words. Valid HTML using only <h2>, <h3>, <p>,
+  <ul>/<li>. No <h1> in the body (the title is separate). No inline styles, no <script>,
+  no other tags. Structure, in this order:
+  1. Кратко въведение (2-4 изречения, без H2 заглавие) представящо темата.
+  2. 6 до 9 секции с <h2> заглавие, покриващи темата задълбочено и логично; част от тях (не
+     всички) трябва да съдържат и <h3> подсекции и/или <ul>/<li> списъци, където това има
+     смисъл за четимостта.
+  3. Секция "Контролен списък" с <h2>Контролен списък</h2> и <ul>/<li> с практични,
+     проверими точки, свързани с темата (напр. какво да проверите на етикета, на какво да
+     обърнете внимание при избор) — не медицински съвети или дозировка като лечение.
+  4. Секция с чести въпроси: <h2>Често задавани въпроси</h2>, съдържаща 5 до 8 двойки
+     въпрос/отговор, всяка като <h3>въпрос</h3><p>отговор</p>.
+  5. Кратко заключение (2-4 изречения) обобщаващо статията — без ново H2 заглавие, освен ако
+     не е част от последната съдържателна секция.
+  Задължителният ЗАКЛЮЧИТЕЛЕН CTA (ако има продукт) и абзацът с предупреждението вървят след
+  заключението, в самия край на body_bg_html, по реда, описан в ЗАКЛЮЧИТЕЛЕН CTA по-горе.
 - summary_bg: 1-2 sentence plain-text excerpt (no HTML).
 
 OUTPUT FORMAT: Respond with STRICT JSON only — no markdown code fences, no commentary before
@@ -99,15 +132,20 @@ REGULATORY GUARDRAILS — EU Regulation (EC) No 1924/2006 on nutrition and healt
   authorised claim, it MUST be attributed explicitly to vitamin C, using this exact wording (or
   a close, accurate translation) — do not invent health claims for collagen peptides themselves,
   since they have no authorised claims.
+- NEVER use collagen-efficacy phrasing such as "studies show promising results for skin
+  hydration/elasticity" or "proven to improve skin/joints" — even hedged with "may" or "some
+  studies suggest". The only collagen-related claim the article may contain is the authorised
+  vitamin C claim above; everything else about collagen's role must stay purely descriptive
+  (structural protein, natural decline in synthesis with age) — no implied outcome from taking it.
 - The article MUST naturally include, near the end, the mandatory disclaimer: "Food supplements
   should not be used as a substitute for a varied and balanced diet and a healthy lifestyle."
 `.trim();
 
 const PRODUCT_LINK_INSTRUCTIONS_EN = `
 PRODUCT LINK (optional):
-- If a PRODUCT is provided below, mention it EXACTLY ONCE somewhere in body_en_html — inside a
-  sentence where it genuinely fits the editorial flow (not as a separate, tacked-on sentence at
-  the end).
+- If a PRODUCT is provided below, mention it EXACTLY ONCE inside the main body text of
+  body_en_html — inside a sentence where it genuinely fits the editorial flow (not as a
+  separate, tacked-on sentence at the end).
 - Mention it as an HTML link in this exact form: <a href="URL">Exact Product Name</a>, using the
   URL and name from the provided PRODUCT below (use the exact provided English name as the link
   text).
@@ -116,9 +154,22 @@ PRODUCT LINK (optional):
   "check out our product" line bolted on at the end.
 - Do NOT make any product claims in that sentence — the same regulatory guardrails (EC
   1924/2006) apply to it as to the rest of the article.
-- Maximum ONE product link in the entire article.
+- Only ONE such natural, woven-in link in the entire article.
 - If NO PRODUCT is provided below, do not add any product link at all — the article must be
   completely free of product links.
+
+CLOSING CTA (only if a PRODUCT is provided):
+- In addition to the natural mention above, add exactly ONE separate call-to-action line,
+  positioned immediately BEFORE the mandatory food-supplements disclaimer paragraph at the very
+  end of the article.
+- Format: a short <p> sentence containing an HTML link to the PRODUCT, with natural anchor text
+  that includes the product name — for example: <p>Start your daily ritual with
+  <a href="URL">Exact Product Name</a>.</p>
+- This line is purely a call-to-action — it must NOT contain any health or efficacy claim about
+  the product, only an invitation to check it out/try it.
+- Result: when a product is provided, the article contains exactly TWO links to it — the one
+  natural in-body mention, and this separate CTA line right before the disclaimer. If NO product
+  is provided, do not add any CTA line at all.
 `.trim();
 
 const EN_SYSTEM_PROMPT = `
@@ -140,8 +191,21 @@ REQUIREMENTS:
 - Natural, fluent English, as if written by a native English SEO copywriter.
 - H1 title (title_en): compelling, includes the topic's core keyword naturally in English.
 - meta_en: meta description, <= 155 characters.
-- body_en_html: 600-900 words, valid HTML using only <h2>, <h3>, <p>, <ul>/<li>. No <h1> in
-  the body (the title is separate). No inline styles, no <script>, no other tags.
+- body_en_html: TARGET LENGTH ~1500-2200 words. Valid HTML using only <h2>, <h3>, <p>,
+  <ul>/<li>. No <h1> in the body (the title is separate). No inline styles, no <script>,
+  no other tags. Structure, in this order:
+  1. A short intro (2-4 sentences, no H2 heading) introducing the topic.
+  2. 6 to 9 <h2> sections covering the topic thoroughly and logically; some (not all) of them
+     should include <h3> subsections and/or <ul>/<li> lists where that helps readability.
+  3. A checklist section: <h2>Checklist</h2> followed by <ul>/<li> with practical, checkable
+     points related to the topic (e.g. what to check on the label, what to look for when
+     choosing) — not medical advice or dosage framed as treatment.
+  4. An FAQ section: <h2>Frequently Asked Questions</h2>, containing 5 to 8 question/answer
+     pairs, each as <h3>question</h3><p>answer</p>.
+  5. A short conclusion (2-4 sentences) wrapping up the article — no new H2 heading unless it's
+     part of the last content section.
+  The mandatory CLOSING CTA (if a product is present) and the disclaimer paragraph go after the
+  conclusion, at the very end of body_en_html, in the order described under CLOSING CTA above.
 - summary_en: 1-2 sentence plain-text excerpt (no HTML).
 
 OUTPUT FORMAT: Respond with STRICT JSON only — no markdown code fences, no commentary before
