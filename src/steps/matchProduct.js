@@ -64,6 +64,37 @@ export async function matchProduct(topic) {
   return passed[0] ?? null;
 }
 
+// Fallback for when matchProduct() finds nothing that clears the guards —
+// looks up this store's configured PRIMARY_PRODUCT_HANDLE directly (no
+// semantic search, no similarity/accessory guards) so every article can
+// still carry a product link. Returns null if this store has no primary
+// product configured, or if the configured handle doesn't exist in the
+// products table (logged loudly rather than silently skipped, since a
+// misconfigured handle should be fixed, not quietly ignored).
+export async function fetchPrimaryProduct() {
+  const handle = config.products.primaryHandleByStore[STORE];
+  if (!handle) return null;
+
+  const { data, error } = await supabase
+    .from('products')
+    .select('shopify_gid, handle, title, title_bg, url')
+    .eq('store', STORE)
+    .eq('handle', handle)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to fetch primary product "${handle}" for store="${STORE}": ${error.message}`);
+  }
+  if (!data) {
+    console.warn(
+      `fetchPrimaryProduct: configured handle "${handle}" for store="${STORE}" not found in products table.`
+    );
+    return null;
+  }
+
+  return data;
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const testTopic = { keyword: 'колаген за кожа', angle: 'ползи и научна информация' };
 

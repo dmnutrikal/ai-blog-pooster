@@ -1,5 +1,5 @@
 import { pickTopic } from './steps/pickTopic.js';
-import { matchProduct } from './steps/matchProduct.js';
+import { matchProduct, fetchPrimaryProduct } from './steps/matchProduct.js';
 import { writeArticle } from './steps/writeArticle.js';
 import { checkCompliance } from './steps/compliance.js';
 import { linkArticles } from './steps/linkArticles.js';
@@ -21,12 +21,16 @@ function articleLinksToProduct(article, product) {
 async function processTopic(topic) {
   // Matched BEFORE writing so the model can weave the link into the prose
   // itself, instead of a separate link snippet bolted on afterwards.
-  const product = await matchProduct({ keyword: topic.keyword, angle: topic.angle });
+  let product = await matchProduct({ keyword: topic.keyword, angle: topic.angle });
 
   if (product) {
     console.log(`  -> product match: "${product.title}" sim=${Number(product.similarity).toFixed(3)}`);
   } else {
     console.log('  -> product match: none cleared guards');
+    product = await fetchPrimaryProduct();
+    if (product) {
+      console.log('  -> product match: fallback to primary product');
+    }
   }
 
   const written = await writeArticle({ keyword: topic.keyword, angle: topic.angle }, { product });

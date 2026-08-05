@@ -101,6 +101,16 @@ export const config = {
     size: process.env.IMAGE_SIZE ?? '1024x1024',
     quality: process.env.IMAGE_QUALITY ?? 'medium',
   },
+  products: {
+    // Per-store fallback product handle. When matchProduct.js finds no
+    // semantic match confident enough to clear the guards, this product is
+    // used instead so every article still carries a product link — see
+    // matchProduct.js's fetchPrimaryProduct(). Keyed by the same store name
+    // used as the STORE constant in matchProduct.js/publish.js/etc.
+    primaryHandleByStore: {
+      collagenlab: process.env.PRIMARY_PRODUCT_HANDLE_COLLAGENLAB || 'collagen-lab-hydrolized-collagen-peptides',
+    },
+  },
 };
 
 export default config;
