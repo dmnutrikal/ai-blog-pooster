@@ -111,6 +111,14 @@ export const config = {
       collagenlab: process.env.PRIMARY_PRODUCT_HANDLE_COLLAGENLAB || 'collagen-lab-hydrolized-collagen-peptides',
     },
   },
+  topics: {
+    // If a run finds fewer than this many 'pending' topics for the store,
+    // index.js auto-generates more via generateTopics.js before picking a
+    // topic — see the trigger at the start of run().
+    minPending: Number(process.env.MIN_PENDING_TOPICS ?? 5),
+    // How many NEW topics generateTopics.js proposes per auto-generation call.
+    generateCount: Number(process.env.TOPICS_GENERATE_COUNT ?? 15),
+  },
 };
 
 export default config;

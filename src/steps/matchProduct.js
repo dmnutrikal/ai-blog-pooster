@@ -25,9 +25,18 @@ export async function fetchCandidateProducts(queryEmbedding) {
   return data ?? [];
 }
 
-function isAccessory(product) {
-  const haystack = `${product.title_bg ?? product.title ?? ''} ${product.handle ?? ''} ${product.product_type ?? ''}`.toLowerCase();
+// Shared with generateTopics.js's safety filter, so "is this text about an
+// accessory" (dosing scoops, spoons, shakers, etc — not the collagen
+// supplement itself) is defined in exactly one place.
+export function containsAccessoryKeyword(text) {
+  const haystack = (text ?? '').toLowerCase();
   return config.linking.accessoryKeywords.some((keyword) => haystack.includes(keyword));
+}
+
+function isAccessory(product) {
+  return containsAccessoryKeyword(
+    `${product.title_bg ?? product.title ?? ''} ${product.handle ?? ''} ${product.product_type ?? ''}`
+  );
 }
 
 // GUARD 1 (similarity) + GUARD 2 (accessory exclusion). Returns both the

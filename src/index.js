@@ -1,12 +1,18 @@
-import { pickTopic } from './steps/pickTopic.js';
+import { pickTopic, countPendingTopics } from './steps/pickTopic.js';
 import { matchProduct, fetchPrimaryProduct } from './steps/matchProduct.js';
 import { writeArticle } from './steps/writeArticle.js';
 import { checkCompliance } from './steps/compliance.js';
 import { linkArticles } from './steps/linkArticles.js';
 import { generateImage } from './steps/generateImage.js';
 import { publishArticle } from './steps/publish.js';
+import { generateTopics } from './steps/generateTopics.js';
 import { supabase } from './lib/supabase.js';
 import { config } from './config.js';
+
+// TODO: single-store for now, same as matchProduct.js/publish.js/etc — see
+// their STORE constants and TODOs about pulling this from config for
+// multi-store support.
+const STORE = 'collagenlab';
 
 // The model is instructed to weave the product in only if it genuinely fits
 // (see writeArticle.js's PRODUCT_LINK_INSTRUCTIONS) — it may legitimately
@@ -76,6 +82,28 @@ async function run() {
     `Starting pipeline run: up to ${n} article(s) | COMPLIANCE_MODE=${config.pipeline.complianceMode} | ` +
       `PUBLISH_STATUS=${config.pipeline.publishStatus}`
   );
+
+  // Auto-generate more topics BEFORE picking one, if the backlog is running
+  // low — keeps pickTopic() from ever starving even if nobody has manually
+  // run `npm run generate-topics` in a while.
+  const pendingCount = await countPendingTopics();
+  if (pendingCount < config.topics.minPending) {
+    console.log(
+      `Pending topics (${pendingCount}) below minimum (${config.topics.minPending}) — generating more...`
+    );
+    try {
+      const { topics, insertedCount } = await generateTopics(STORE, {
+        count: config.topics.generateCount,
+        dryRun: false,
+      });
+      console.log(
+        `  -> generated ${topics.length} topic(s), inserted ${insertedCount} new ` +
+          `(${topics.length - insertedCount} duplicate/skipped).`
+      );
+    } catch (err) {
+      console.error(`  -> topic generation failed, continuing with existing backlog: ${err.message}`);
+    }
+  }
 
   const tally = { published: 0, draft: 0, blocked: 0, errored: 0 };
   const attemptedTopicIds = new Set();
