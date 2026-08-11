@@ -111,6 +111,17 @@ export const config = {
       collagenlab: process.env.PRIMARY_PRODUCT_HANDLE_COLLAGENLAB || 'collagen-lab-hydrolized-collagen-peptides',
     },
   },
+  productLink: {
+    // Anchor text pools for the product link(s) woven into an article — one
+    // inline anchor and one CTA anchor are chosen at random per article (see
+    // index.js's processTopic()) so articles don't all read "Exact Product
+    // Name" verbatim. writeArticle.js falls back to the full product name if
+    // no anchor is provided (e.g. no product matched for the topic).
+    inlineAnchorsBg: ['колаген', 'колаген за кожа', 'телешки колаген', 'CollagenLab', 'хидролизиран телешки колаген'],
+    ctaAnchorsBg: ['Поръчайте сега', 'Кликнете тук', 'Разгледайте продукта', 'Вижте CollagenLab'],
+    inlineAnchorsEn: ['collagen', 'collagen for skin', 'bovine collagen', 'CollagenLab', 'hydrolysed bovine collagen'],
+    ctaAnchorsEn: ['Order now', 'Shop now', 'Check it out', 'Discover CollagenLab'],
+  },
   topics: {
     // If a run finds fewer than this many 'pending' topics for the store,
     // index.js auto-generates more via generateTopics.js before picking a

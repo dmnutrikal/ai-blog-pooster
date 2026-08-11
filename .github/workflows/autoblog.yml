@@ -7,7 +7,7 @@ on:
 
   schedule:
     # Each scheduled run produces ARTICLES_PER_RUN (currently 1) article, so
-    # these three entries give 3 articles/day total. To change the daily
+    # this single entry gives 1 article/day total. To change the daily
     # count, add/remove cron+timezone pairs below (or raise ARTICLES_PER_RUN
     # instead, to produce more articles per run rather than more runs).
     #
@@ -22,10 +22,6 @@ on:
     # - GitHub's scheduler can lag 5-30 minutes under load, so articles may
     #   appear slightly after the exact hour, not exactly on it.
     - cron: '0 10 * * *'
-      timezone: 'Europe/Sofia'
-    - cron: '0 15 * * *'
-      timezone: 'Europe/Sofia'
-    - cron: '0 19 * * *'
       timezone: 'Europe/Sofia'
 
 # Prevents two runs from overlapping (e.g. a manual trigger firing while the

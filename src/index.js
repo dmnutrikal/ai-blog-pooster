@@ -14,6 +14,10 @@ import { config } from './config.js';
 // multi-store support.
 const STORE = 'collagenlab';
 
+function pickRandom(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 // The model is instructed to weave the product in only if it genuinely fits
 // (see writeArticle.js's PRODUCT_LINK_INSTRUCTIONS) — it may legitimately
 // skip a provided product. Checking for the URL in the finished HTML (rather
@@ -39,7 +43,19 @@ async function processTopic(topic) {
     }
   }
 
-  const written = await writeArticle({ keyword: topic.keyword, angle: topic.angle }, { product });
+  // A fresh random anchor pair per article/per language keeps the product
+  // link from reading as "Exact Product Name" every single time — see
+  // config.productLink and writeArticle.js's PRODUCT_LINK_INSTRUCTIONS_*.
+  const anchors = product
+    ? {
+        inlineAnchorBg: pickRandom(config.productLink.inlineAnchorsBg),
+        ctaAnchorBg: pickRandom(config.productLink.ctaAnchorsBg),
+        inlineAnchorEn: pickRandom(config.productLink.inlineAnchorsEn),
+        ctaAnchorEn: pickRandom(config.productLink.ctaAnchorsEn),
+      }
+    : null;
+
+  const written = await writeArticle({ keyword: topic.keyword, angle: topic.angle }, { product, anchors });
 
   const compliance = await checkCompliance(written);
   if (config.pipeline.complianceMode === 'block' && compliance.passed !== true) {

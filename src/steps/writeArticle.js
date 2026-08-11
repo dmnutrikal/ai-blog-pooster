@@ -42,9 +42,11 @@ const PRODUCT_LINK_INSTRUCTIONS_BG = `
 - Ако по-долу е предоставен ПРОДУКТ, спомени го ТОЧНО ВЕДНЪЖ вътре в основния текст на
   body_bg_html — в изречение, където естествено пасва на редакционния контекст (не в отделно,
   откроено изречение накрая).
-- Спомени го като HTML връзка във формàта: <a href="URL">Точното българско име на продукта</a>,
-  като URL и името идват от предоставения ПРОДУКТ по-долу (използвай точно предоставеното
-  българско име като текст на връзката).
+- Спомени го като HTML връзка във формàта: <a href="URL">ТЕКСТ НА ВРЪЗКАТА</a>, като URL идва
+  от предоставения ПРОДУКТ по-долу. За ТЕКСТ НА ВРЪЗКАТА използвай ТОЧНО текста, посочен по-долу
+  като "ТЕКСТ НА ВРЪЗКАТА В ТЕКСТА" (ако е предоставен) — вплети го естествено в изречението,
+  дори когато не е самото име на продукта (напр. само "колаген" или "CollagenLab"). Ако такъв
+  текст НЕ е предоставен, използвай точното българско име на продукта като текст на връзката.
 - Това ТРЯБВА да звучи като естествено редакционно споменаване — например докато обясняваш
   как хората обичайно приемат колагенови пептиди или каква форма избират — а НЕ като реклама
   или като изречение от типа "разгледайте нашия продукт", добавено накрая.
@@ -58,8 +60,12 @@ const PRODUCT_LINK_INSTRUCTIONS_BG = `
 - В допълнение към естественото споменаване по-горе, добави точно ЕДИН отделен ред с покана за
   действие (call-to-action), позициониран непосредствено ПРЕДИ задължителния абзац с
   предупреждението за хранителни добавки в самия край на статията.
-- Формат: кратко изречение в <p>, съдържащо HTML връзка към ПРОДУКТА, с естествен текст на
-  връзката, включващ името на продукта — например: <p>Започнете своя ежедневен ритуал с
+- Формат: кратко изречение в <p>, съдържащо HTML връзка към ПРОДУКТА: <a href="URL">ТЕКСТ НА
+  ВРЪЗКАТА</a>. За ТЕКСТ НА ВРЪЗКАТА използвай ТОЧНО текста, посочен по-долу като "ТЕКСТ НА
+  ВРЪЗКАТА В CTA" (ако е предоставен) — той вече звучи като покана за действие, така че кратко
+  въвеждащо изречение около него стига, напр.: <p>Готови ли сте да започнете?
+  <a href="URL">Поръчайте сега</a>.</p> Ако такъв текст НЕ е предоставен, използвай естествен
+  текст на връзката, включващ името на продукта — например: <p>Започнете своя ежедневен ритуал с
   <a href="URL">Точното българско име на продукта</a>.</p>
 - Този ред е чисто поканващ (CTA) — НЕ съдържа никаква здравна или ефективностна претенция за
   продукта, само покана да се разгледа/пробва.
@@ -146,9 +152,11 @@ PRODUCT LINK (optional):
 - If a PRODUCT is provided below, mention it EXACTLY ONCE inside the main body text of
   body_en_html — inside a sentence where it genuinely fits the editorial flow (not as a
   separate, tacked-on sentence at the end).
-- Mention it as an HTML link in this exact form: <a href="URL">Exact Product Name</a>, using the
-  URL and name from the provided PRODUCT below (use the exact provided English name as the link
-  text).
+- Mention it as an HTML link in this exact form: <a href="URL">LINK TEXT</a>, using the URL from
+  the provided PRODUCT below. For LINK TEXT, use EXACTLY the text given below as "INLINE ANCHOR
+  TEXT" (if provided) — weave it naturally into the sentence, even when it isn't the product name
+  itself (e.g. just "collagen" or "CollagenLab"). If no such text is provided, use the exact
+  product name as the link text instead.
 - This MUST read as a natural editorial mention — for example while explaining how people
   typically take collagen peptides or what format they choose — NOT as an advertisement or a
   "check out our product" line bolted on at the end.
@@ -162,8 +170,11 @@ CLOSING CTA (only if a PRODUCT is provided):
 - In addition to the natural mention above, add exactly ONE separate call-to-action line,
   positioned immediately BEFORE the mandatory food-supplements disclaimer paragraph at the very
   end of the article.
-- Format: a short <p> sentence containing an HTML link to the PRODUCT, with natural anchor text
-  that includes the product name — for example: <p>Start your daily ritual with
+- Format: a short <p> sentence containing an HTML link to the PRODUCT: <a href="URL">LINK
+  TEXT</a>. For LINK TEXT, use EXACTLY the text given below as "CTA ANCHOR TEXT" (if provided) —
+  it already reads as a call-to-action, so a brief lead-in around it is enough, e.g.: <p>Ready to
+  start? <a href="URL">Order now</a>.</p> If no such text is provided, use natural anchor text
+  that includes the product name instead — for example: <p>Start your daily ritual with
   <a href="URL">Exact Product Name</a>.</p>
 - This line is purely a call-to-action — it must NOT contain any health or efficacy claim about
   the product, only an invitation to check it out/try it.
@@ -218,46 +229,64 @@ or after. The JSON object must have exactly these keys:
 }
 `.trim();
 
-function buildProductLineBg(product) {
+function buildProductLineBg(product, anchors) {
   if (!product) {
     return 'ПРОДУКТ: няма предоставен продукт — не добавяй връзка към продукт.';
   }
   const name = product.title_bg ?? product.title;
-  return `ПРОДУКТ (спомени максимум веднъж, само ако естествено пасва): "${name}" — ${product.url}`;
+  let line = `ПРОДУКТ (спомени максимум веднъж, само ако естествено пасва): "${name}" — ${product.url}`;
+  if (anchors?.inlineAnchorBg) {
+    line += `\nТЕКСТ НА ВРЪЗКАТА В ТЕКСТА: "${anchors.inlineAnchorBg}"`;
+  }
+  if (anchors?.ctaAnchorBg) {
+    line += `\nТЕКСТ НА ВРЪЗКАТА В CTA: "${anchors.ctaAnchorBg}"`;
+  }
+  return line;
 }
 
-function buildProductLineEn(product) {
+function buildProductLineEn(product, anchors) {
   if (!product) {
     return 'PRODUCT: none provided — do not add a product link.';
   }
-  return `PRODUCT (mention at most once, only if it genuinely fits): "${product.title}" — ${product.url}`;
+  let line = `PRODUCT (mention at most once, only if it genuinely fits): "${product.title}" — ${product.url}`;
+  if (anchors?.inlineAnchorEn) {
+    line += `\nINLINE ANCHOR TEXT: "${anchors.inlineAnchorEn}"`;
+  }
+  if (anchors?.ctaAnchorEn) {
+    line += `\nCTA ANCHOR TEXT: "${anchors.ctaAnchorEn}"`;
+  }
+  return line;
 }
 
-function buildBgPrompt(topic, product) {
+function buildBgPrompt(topic, product, anchors) {
   const angleLine = topic.angle
     ? `Ъгъл/фокус на статията: ${topic.angle}`
     : 'Няма зададен конкретен ъгъл — избери подходящ информативен фокус за темата.';
-  return `Ключова дума: ${topic.keyword}\n${angleLine}\n${buildProductLineBg(product)}`;
+  return `Ключова дума: ${topic.keyword}\n${angleLine}\n${buildProductLineBg(product, anchors)}`;
 }
 
-function buildEnPrompt(topic, product) {
+function buildEnPrompt(topic, product, anchors) {
   const angleLine = topic.angle
     ? `Angle/focus (noted in Bulgarian — write about this same angle, natively in English): ${topic.angle}`
     : 'No specific angle given — choose an appropriate informative focus for the topic.';
-  return `Topic keyword (Bulgarian phrasing — translate the underlying concept, do not write in Bulgarian): ${topic.keyword}\n${angleLine}\n${buildProductLineEn(product)}`;
+  return `Topic keyword (Bulgarian phrasing — translate the underlying concept, do not write in Bulgarian): ${topic.keyword}\n${angleLine}\n${buildProductLineEn(product, anchors)}`;
 }
 
 // topic: { keyword: string, angle: string | null }
 // product: the object returned by matchProduct.js (needs title, title_bg, url), or null/
 // undefined if no product cleared the relevance guards — in which case the article is
 // written with no product link at all.
+// anchors: { inlineAnchorBg, ctaAnchorBg, inlineAnchorEn, ctaAnchorEn } — one anchor pair per
+// language, chosen per-article by index.js's processTopic() from config.productLink. Ignored
+// when product is null; falls back to the full product name if omitted (see
+// PRODUCT_LINK_INSTRUCTIONS_BG/EN above).
 // English (primary/canonical) and Bulgarian (priority-market) are generated
 // independently and in parallel — neither is a translation/adaptation of the
 // other, both are full-quality articles under the same EC 1924/2006 guardrails.
-export async function writeArticle(topic, { product = null } = {}) {
+export async function writeArticle(topic, { product = null, anchors = null } = {}) {
   const [bgArticle, enArticle] = await Promise.all([
-    generateJson({ system: BG_SYSTEM_PROMPT, prompt: buildBgPrompt(topic, product) }),
-    generateJson({ system: EN_SYSTEM_PROMPT, prompt: buildEnPrompt(topic, product) }),
+    generateJson({ system: BG_SYSTEM_PROMPT, prompt: buildBgPrompt(topic, product, anchors) }),
+    generateJson({ system: EN_SYSTEM_PROMPT, prompt: buildEnPrompt(topic, product, anchors) }),
   ]);
 
   return {
