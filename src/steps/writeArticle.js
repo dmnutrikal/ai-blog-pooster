@@ -258,18 +258,49 @@ function buildProductLineEn(product, anchors) {
   return line;
 }
 
-function buildBgPrompt(topic, product, anchors) {
+function buildFixedTitleLineBg(fixedTitleBg) {
+  if (!fixedTitleBg) return null;
+  return (
+    `ЗАГЛАВИЕ (ЗАДЪЛЖИТЕЛНО, ИЗПОЛЗВАЙ ТОЧНО ТАКА): "${fixedTitleBg}"\n` +
+    'Това е окончателното, вече фиксирано заглавие на статията — върни го БУКВАЛНО, дума по ' +
+    'дума и знак по знак, в полето "title_bg". НЕ съчинявай друго заглавие и не го перифразирай. ' +
+    'Напиши body_bg_html, meta_bg и summary_bg така, че да пасват логично и естествено на това ' +
+    'заглавие и неговия фокус.'
+  );
+}
+
+function buildFixedTitleLineEn(fixedTitleEn) {
+  if (!fixedTitleEn) return null;
+  return (
+    `TITLE (MANDATORY, USE EXACTLY AS GIVEN): "${fixedTitleEn}"\n` +
+    'This is the final, already-fixed title of the article — return it VERBATIM, word for word ' +
+    'and punctuation for punctuation, in the "title_en" field. Do NOT invent a different title or ' +
+    'paraphrase it. Write body_en_html, meta_en, and summary_en so they cohere naturally with ' +
+    'this title and its focus.'
+  );
+}
+
+function buildBgPrompt(topic, product, anchors, fixedTitleBg) {
   const angleLine = topic.angle
     ? `Ъгъл/фокус на статията: ${topic.angle}`
     : 'Няма зададен конкретен ъгъл — избери подходящ информативен фокус за темата.';
-  return `Ключова дума: ${topic.keyword}\n${angleLine}\n${buildProductLineBg(product, anchors)}`;
+  return [buildFixedTitleLineBg(fixedTitleBg), `Ключова дума: ${topic.keyword}`, angleLine, buildProductLineBg(product, anchors)]
+    .filter(Boolean)
+    .join('\n');
 }
 
-function buildEnPrompt(topic, product, anchors) {
+function buildEnPrompt(topic, product, anchors, fixedTitleEn) {
   const angleLine = topic.angle
     ? `Angle/focus (noted in Bulgarian — write about this same angle, natively in English): ${topic.angle}`
     : 'No specific angle given — choose an appropriate informative focus for the topic.';
-  return `Topic keyword (Bulgarian phrasing — translate the underlying concept, do not write in Bulgarian): ${topic.keyword}\n${angleLine}\n${buildProductLineEn(product, anchors)}`;
+  return [
+    buildFixedTitleLineEn(fixedTitleEn),
+    `Topic keyword (Bulgarian phrasing — translate the underlying concept, do not write in Bulgarian): ${topic.keyword}`,
+    angleLine,
+    buildProductLineEn(product, anchors),
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 // topic: { keyword: string, angle: string | null }
@@ -280,21 +311,27 @@ function buildEnPrompt(topic, product, anchors) {
 // language, chosen per-article by index.js's processTopic() from config.productLink. Ignored
 // when product is null; falls back to the full product name if omitted (see
 // PRODUCT_LINK_INSTRUCTIONS_BG/EN above).
+// fixedTitleBg / fixedTitleEn: when the topic comes from the fixed editorial calendar
+// (topics.fixed_title_bg/fixed_title_en), these carry that exact title through. The model is
+// told to use them verbatim and write the rest of the article to fit; the returned title_bg/
+// title_en are then forced back to these exact strings regardless of what the model actually
+// returned, since a model can still lightly reword a title despite instructions. When absent,
+// title_bg/title_en come straight from the model as before.
 // English (primary/canonical) and Bulgarian (priority-market) are generated
 // independently and in parallel — neither is a translation/adaptation of the
 // other, both are full-quality articles under the same EC 1924/2006 guardrails.
-export async function writeArticle(topic, { product = null, anchors = null } = {}) {
+export async function writeArticle(topic, { product = null, anchors = null, fixedTitleBg = null, fixedTitleEn = null } = {}) {
   const [bgArticle, enArticle] = await Promise.all([
-    generateJson({ system: BG_SYSTEM_PROMPT, prompt: buildBgPrompt(topic, product, anchors) }),
-    generateJson({ system: EN_SYSTEM_PROMPT, prompt: buildEnPrompt(topic, product, anchors) }),
+    generateJson({ system: BG_SYSTEM_PROMPT, prompt: buildBgPrompt(topic, product, anchors, fixedTitleBg) }),
+    generateJson({ system: EN_SYSTEM_PROMPT, prompt: buildEnPrompt(topic, product, anchors, fixedTitleEn) }),
   ]);
 
   return {
-    title_bg: bgArticle.title_bg,
+    title_bg: fixedTitleBg ?? bgArticle.title_bg,
     meta_bg: bgArticle.meta_bg,
     body_bg_html: bgArticle.body_bg_html,
     summary_bg: bgArticle.summary_bg,
-    title_en: enArticle.title_en,
+    title_en: fixedTitleEn ?? enArticle.title_en,
     meta_en: enArticle.meta_en,
     body_en_html: enArticle.body_en_html,
     summary_en: enArticle.summary_en,

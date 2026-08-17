@@ -55,7 +55,10 @@ async function processTopic(topic) {
       }
     : null;
 
-  const written = await writeArticle({ keyword: topic.keyword, angle: topic.angle }, { product, anchors });
+  const written = await writeArticle(
+    { keyword: topic.keyword, angle: topic.angle },
+    { product, anchors, fixedTitleBg: topic.fixed_title_bg, fixedTitleEn: topic.fixed_title_en }
+  );
 
   const compliance = await checkCompliance(written);
   if (config.pipeline.complianceMode === 'block' && compliance.passed !== true) {

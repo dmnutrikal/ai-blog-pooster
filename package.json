@@ -10,6 +10,7 @@
   "scripts": {
     "sync-products": "node src/steps/syncProducts.js",
     "generate-topics": "node src/steps/generateTopics.js",
+    "load-calendar": "node src/steps/loadCalendar.js",
     "run": "node src/index.js",
     "test-connections": "node scripts/testConnections.js"
   },
