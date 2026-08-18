@@ -53,6 +53,10 @@ export const config = {
       terra: process.env.OPENAI_MODEL_TERRA ?? 'gpt-5.6-terra',
       luna: process.env.OPENAI_MODEL_LUNA ?? 'gpt-5.6-luna',
       image: process.env.OPENAI_MODEL_IMAGE ?? 'gpt-image-1.5',
+      // Used for the product-in-scene featured-image edit call (images.edit), not the plain
+      // text-to-image generate() call above — kept as its own var/default since the edit
+      // endpoint's supported models aren't guaranteed to match models.image's.
+      imageEdit: process.env.OPENAI_MODEL_IMAGE_EDIT ?? 'gpt-image-1',
       embedding: process.env.OPENAI_MODEL_EMBEDDING ?? 'text-embedding-3-small',
     },
   },
@@ -100,6 +104,51 @@ export const config = {
     // Blog thumbnail, not a hero image — keep size/quality modest for cost.
     size: process.env.IMAGE_SIZE ?? '1024x1024',
     quality: process.env.IMAGE_QUALITY ?? 'medium',
+    // Product cutouts used as the reference image for the product-in-scene featured-image edit
+    // (see generateImage.js) — files live in assets/products/, committed to the repo since the
+    // GitHub Actions runner needs them at runtime. One is picked per article (random by
+    // default, or forced via forceFlavorSlug below for manual/test runs).
+    flavors: [
+      { slug: 'original', file: 'Original transperant.png', label: 'Original' },
+      { slug: 'salted-caramel', file: 'SaltedCaramel transperant.png', label: 'Salted Caramel' },
+      { slug: 'wild-berries', file: 'WildBerries transperant.png', label: 'Wild Berries' },
+      { slug: 'tropical', file: 'Tropical transperant.png', label: 'Tropical Elixir' },
+    ],
+    // Test/trial-run override — when set to a valid slug from `flavors` above, generateImage.js
+    // uses that exact flavor instead of picking one at random. Unset in normal pipeline runs.
+    forceFlavorSlug: process.env.IMAGE_FORCE_FLAVOR || null,
+    // Lifestyle-scene style pool for the product-in-scene edit prompt — one is picked at random
+    // per article so featured images don't all look like the same shot with a different pouch.
+    sceneStyles: [
+      {
+        name: 'bright-kitchen-counter',
+        sceneText:
+          'A bright, sunlit kitchen countertop scene, soft morning natural light, a light wood ' +
+          'or marble counter surface, a few tasteful everyday lifestyle props loosely related ' +
+          'to the theme, shallow depth of field, airy wellness aesthetic.',
+      },
+      {
+        name: 'ingredients-water-flatlay',
+        sceneText:
+          'A clean overhead-angled flatlay-style scene on a light linen or stone surface, a ' +
+          'glass of water, fresh natural ingredients related to the theme arranged loosely, ' +
+          'soft diffused light, minimal styling.',
+      },
+      {
+        name: 'morning-ritual-table',
+        sceneText:
+          'A calm morning-ritual table scene — a cozy breakfast or bedside table, a soft linen ' +
+          'textile, a warm ceramic cup, a small plant, gentle natural window light, relaxed ' +
+          'unhurried mood.',
+      },
+      {
+        name: 'minimal-studio-surface',
+        sceneText:
+          'A minimal studio-style still-life background, soft pastel gradient backdrop, a ' +
+          'single simple textured surface (stone, linen, or wood), clean and uncluttered, soft ' +
+          'even studio lighting, high-end editorial product-photography look.',
+      },
+    ],
   },
   products: {
     // Per-store fallback product handle. When matchProduct.js finds no

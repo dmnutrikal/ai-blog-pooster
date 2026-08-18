@@ -141,6 +141,8 @@ All configuration is read from environment variables via `src/config.js`, which 
 | `ACCESSORY_KEYWORDS` | Comma-separated keywords used to exclude non-primary product types from internal linking. |
 | `IMAGE_SIZE` | Dimensions of the generated featured image. |
 | `IMAGE_QUALITY` | Quality tier of the generated featured image. |
+| `OPENAI_MODEL_IMAGE_EDIT` | Model used to render the real product pouch (from `assets/products/`) into the featured-image scene via the Images edit endpoint. |
+| `IMAGE_FORCE_FLAVOR` | Test/trial-run only — forces a specific product flavor slug instead of picking one at random per article. |
 
 ## Compliance & Safety
 

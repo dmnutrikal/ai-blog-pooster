@@ -1,7 +1,15 @@
-import { pathToFileURL } from 'node:url';
-import { image } from '../providers/openai.js';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { image, editImage } from '../providers/openai.js';
 import { graphql } from '../lib/shopify.js';
 import { config } from '../config.js';
+
+const PRODUCTS_DIR = path.join(path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url)))), 'assets', 'products');
+
+function pickRandom(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
 
 const STAGED_UPLOADS_CREATE = `
   mutation StagedUploadsCreate($input: [StagedUploadInput!]!) {
@@ -58,10 +66,50 @@ const FILE_STATUS_QUERY = `
 // TODO: CollagenLab-specific brand/aesthetic tuning (exact color palette,
 // props, model presence/absence) may need adjusting once there's real
 // feedback on generated images.
-function buildImagePrompt(article, topic) {
+const COMPLIANCE_BLOCK =
+  'No text, no words, no typography, no logos, no watermarks anywhere in the image other than ' +
+  'what is already printed on the reference product pouch itself (when a reference is used). ' +
+  'Do NOT include: medical or clinical settings, hospital or pharmacy imagery, before/after ' +
+  'comparison shots, doctors or people in white lab coats, pills or capsules presented as ' +
+  'medicine, close-ups implying wrinkles or joints are being medically treated or cured, any ' +
+  'invented claim text or badges, or any imagery that implies a medical claim or treatment. No ' +
+  'people in the frame.';
+
+function conceptFor(article, topic) {
   // English adaptation is already sitting on the article object — reuse it
   // as the concept anchor instead of translating title_bg/keyword ourselves.
-  const concept = article.title_en || topic.keyword;
+  return article.title_en || topic.keyword;
+}
+
+// Primary path: renders the real product pouch (a cutout from assets/products/) into a new
+// lifestyle scene via the Images edit endpoint, instead of generating a scene from text alone —
+// gives believable perspective/lighting/contact-shadow instead of a flat pasted-on look.
+// topic.angle carries the calendar cluster (topics.angle = cluster_bg, see loadCalendar.js) for
+// non-calendar/ad-hoc topics it's just their free-form angle — either way it's a reasonable
+// steer for scene variety.
+function buildProductScenePrompt(article, topic, style, flavor) {
+  const concept = conceptFor(article, topic);
+  const clusterHint = topic.angle ? ` (cluster/theme: "${topic.angle}")` : '';
+
+  return [
+    `Using the attached reference image of a CollagenLab collagen-peptide pouch (flavor: ${flavor.label}), place THIS EXACT product pouch naturally into a new lifestyle scene illustrating the theme: "${concept}"${clusterHint}.`,
+    `Scene: ${style.sceneText}`,
+    'Product placement: the pouch must sit IN the scene with believable perspective, resting ' +
+      'naturally on the surface (not floating), with lighting, color temperature, and shadow ' +
+      'direction matched to the scene, plus a real soft contact shadow where it touches the ' +
+      'surface. Compose it so it is clearly present but not dominating — roughly a third of the ' +
+      'frame, positioned off-center (not dead-center) in the lower portion of the shot.',
+    'Packaging fidelity: keep the pouch exactly as shown in the reference — same label design, ' +
+      'colours, wordmark, and flavour text. Do NOT redesign, restyle, relabel, or change the ' +
+      'packaging in any way; only change its lighting/perspective to match the new scene.',
+    COMPLIANCE_BLOCK,
+  ].join(' ');
+}
+
+// Fallback path (also the only path if flavor cutouts are ever unavailable): the original
+// text-only lifestyle scene, no product pouch.
+function buildLifestylePrompt(article, topic) {
+  const concept = conceptFor(article, topic);
 
   return [
     `A clean, editorial lifestyle photograph illustrating the theme: "${concept}".`,
@@ -70,11 +118,7 @@ function buildImagePrompt(article, topic) {
     'Subject matter: everyday lifestyle, food, and natural ingredients — for example fresh ' +
       'fruit, a glass of water or smoothie, a calm skincare or wellness routine moment, ' +
       'natural textures. General depiction of healthy-looking skin in an everyday context is fine.',
-    'No text, no words, no typography, no logos, no watermarks anywhere in the image.',
-    'Do NOT include: medical or clinical settings, hospital or pharmacy imagery, before/after ' +
-      'comparison shots, doctors or people in white lab coats, pills or capsules presented as ' +
-      'medicine, close-ups implying wrinkles or joints are being medically treated or cured, or ' +
-      'any imagery that implies a medical claim or treatment.',
+    COMPLIANCE_BLOCK,
   ].join(' ');
 }
 
@@ -151,21 +195,66 @@ async function uploadToShopifyFiles(imageBytes, filename) {
   return file.image?.url ?? (await pollForImageUrl(file.id));
 }
 
+function pickFlavor() {
+  const { flavors, forceFlavorSlug } = config.image;
+  if (forceFlavorSlug) {
+    const forced = flavors.find((f) => f.slug === forceFlavorSlug);
+    if (forced) return forced;
+    console.warn(`generateImage: IMAGE_FORCE_FLAVOR="${forceFlavorSlug}" matches no configured flavor — picking randomly instead.`);
+  }
+  return pickRandom(flavors);
+}
+
+async function generateProductSceneImage(article, topic) {
+  const flavor = pickFlavor();
+  const style = pickRandom(config.image.sceneStyles);
+  const imagePrompt = buildProductScenePrompt(article, topic, style, flavor);
+
+  const cutoutPath = path.join(PRODUCTS_DIR, flavor.file);
+  const cutoutBuffer = await readFile(cutoutPath);
+  const imageData = await editImage(imagePrompt, cutoutBuffer, flavor.file);
+  const imageBytes = await getImageBytes(imageData);
+
+  return { imagePrompt, imageBytes };
+}
+
+async function generateLifestyleImage(article, topic) {
+  const imagePrompt = buildLifestylePrompt(article, topic);
+  const imageData = await image(imagePrompt);
+  const imageBytes = await getImageBytes(imageData);
+
+  return { imagePrompt, imageBytes };
+}
+
 // article: needs title_en (falls back to topic.keyword). topic: { keyword, angle }.
-// Image generation/upload is best-effort: on any failure this logs a warning
-// and returns imageUrl: null rather than throwing, so the pipeline can still
-// publish the article without a featured image.
+// Image generation/upload is best-effort: on any failure this logs a warning and returns
+// imageUrl: null rather than throwing, so the pipeline can still publish the article without a
+// featured image.
+// Primary path renders a real product pouch (assets/products/) into a lifestyle scene via the
+// Images edit endpoint (see buildProductScenePrompt/editImage). If that fails for any reason
+// (bad reference file, edit endpoint error, etc.) this falls back to the previous text-only
+// lifestyle scene (no product) rather than leaving the article with no image at all.
 export async function generateImage(article, topic) {
-  const imagePrompt = buildImagePrompt(article, topic);
   let imageUrl = null;
+  let imagePrompt = null;
 
   try {
-    const imageData = await image(imagePrompt);
-    const imageBytes = await getImageBytes(imageData);
+    const result = await generateProductSceneImage(article, topic);
+    imagePrompt = result.imagePrompt;
     const filename = `collagenlab-article-${Date.now()}.png`;
-    imageUrl = await uploadToShopifyFiles(imageBytes, filename);
+    imageUrl = await uploadToShopifyFiles(result.imageBytes, filename);
+    return { imageUrl, imagePrompt };
   } catch (err) {
-    console.warn(`generateImage: failed to generate/upload featured image, continuing without one — ${err.message}`);
+    console.warn(`generateImage: product-in-scene edit failed, falling back to text-only lifestyle image — ${err.message}`);
+  }
+
+  try {
+    const result = await generateLifestyleImage(article, topic);
+    imagePrompt = result.imagePrompt;
+    const filename = `collagenlab-article-${Date.now()}.png`;
+    imageUrl = await uploadToShopifyFiles(result.imageBytes, filename);
+  } catch (err) {
+    console.warn(`generateImage: fallback lifestyle image also failed, continuing without one — ${err.message}`);
   }
 
   return { imageUrl, imagePrompt };
