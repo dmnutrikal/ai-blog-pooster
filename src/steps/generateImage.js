@@ -1,6 +1,6 @@
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { image, editImage } from '../providers/openai.js';
 import { graphql } from '../lib/shopify.js';
 import { config } from '../config.js';
@@ -81,27 +81,57 @@ function conceptFor(article, topic) {
   return article.title_en || topic.keyword;
 }
 
-// Primary path: renders the real product pouch (a cutout from assets/products/) into a new
-// lifestyle scene via the Images edit endpoint, instead of generating a scene from text alone —
-// gives believable perspective/lighting/contact-shadow instead of a flat pasted-on look.
-// topic.angle carries the calendar cluster (topics.angle = cluster_bg, see loadCalendar.js) for
+// Flavor-appropriate styling props, matched by keyword against the flavor label so this
+// generalizes to any future cutout naming rather than hardcoding exact filenames.
+function propsForFlavor(flavorLabel) {
+  const lower = flavorLabel.toLowerCase();
+  if (lower.includes('caramel')) {
+    return 'a few pieces of salted caramel and a small dish of sea salt flakes nearby, warm cozy styling';
+  }
+  if (lower.includes('berr')) {
+    return 'fresh wild berries — blueberries, raspberries, blackberries — loosely scattered nearby';
+  }
+  if (lower.includes('tropical') || lower.includes('elixir')) {
+    return 'tropical fruit — passion fruit, pineapple, a little coconut — arranged nearby';
+  }
+  if (lower.includes('original')) {
+    return 'a warm ceramic coffee mug and a simple linen napkin nearby, calm neutral morning styling';
+  }
+  return 'a few natural ingredients loosely related to the flavor, arranged nearby';
+}
+
+// Primary path: the model renders the real product pouch directly into a new lifestyle scene
+// via the Images edit endpoint (gpt-image-2 — see config.openai.models.image) — validated
+// through prototyping to reproduce the label's exact text reliably, unlike gpt-image-1. topic
+// .angle carries the calendar cluster (topics.angle = cluster_bg, see loadCalendar.js) for
 // non-calendar/ad-hoc topics it's just their free-form angle — either way it's a reasonable
-// steer for scene variety.
-function buildProductScenePrompt(article, topic, style, flavor) {
+// steer for scene variety. side ('left'/'right') places the pouch off-center by rule of thirds.
+function buildProductScenePrompt(article, topic, style, flavor, side) {
   const concept = conceptFor(article, topic);
   const clusterHint = topic.angle ? ` (cluster/theme: "${topic.angle}")` : '';
+  const propsText = propsForFlavor(flavor.label);
 
   return [
     `Using the attached reference image of a CollagenLab collagen-peptide pouch (flavor: ${flavor.label}), place THIS EXACT product pouch naturally into a new lifestyle scene illustrating the theme: "${concept}"${clusterHint}.`,
     `Scene: ${style.sceneText}`,
-    'Product placement: the pouch must sit IN the scene with believable perspective, resting ' +
-      'naturally on the surface (not floating), with lighting, color temperature, and shadow ' +
-      'direction matched to the scene, plus a real soft contact shadow where it touches the ' +
-      'surface. Compose it so it is clearly present but not dominating — roughly a third of the ' +
-      'frame, positioned off-center (not dead-center) in the lower portion of the shot.',
-    'Packaging fidelity: keep the pouch exactly as shown in the reference — same label design, ' +
-      'colours, wordmark, and flavour text. Do NOT redesign, restyle, relabel, or change the ' +
-      'packaging in any way; only change its lighting/perspective to match the new scene.',
+    'Product angle: show the pouch at a natural THREE-QUARTER angle — slightly turned, not flat ' +
+      'head-on — standing upright on the surface, so it reads with real dimensional depth ' +
+      'rather than a flat label shot.',
+    `Composition: position the pouch OFF-CENTER following the rule of thirds, in the ${side} ` +
+      'third of the frame, with the rest of the scene balancing the composition through ' +
+      'negative space — uncluttered, not crowded. Camera at eye level or very slightly above.',
+    'Depth of field: shallow — the pouch itself in crisp sharp focus, the background gently ' +
+      'blurred, like real product photography shot on a fast lens.',
+    'Scale and grounding: the pouch occupies roughly 30-38% of the total image height, standing ' +
+      'solidly on the surface with a soft, realistic contact shadow beneath its base. Light the ' +
+      'scene with one believable soft light source from one side, casting consistent ' +
+      'directional shadows.',
+    `Styling props: ${propsText}, arranged so they lead the eye toward the pouch rather than ` +
+      'crowding or competing with it.',
+    'ABSOLUTE packaging fidelity: reproduce the pouch and ALL of its label text EXACTLY as shown ' +
+      'in the reference image — identical shape, colours, logo, layout, and every word of text. ' +
+      'Do NOT alter, re-letter, re-spell, translate, or restyle any text on the packaging, and ' +
+      'do NOT add or remove any text.',
     COMPLIANCE_BLOCK,
   ].join(' ');
 }
@@ -195,24 +225,43 @@ async function uploadToShopifyFiles(imageBytes, filename) {
   return file.image?.url ?? (await pollForImageUrl(file.id));
 }
 
-function pickFlavor() {
-  const { flavors, forceFlavorSlug } = config.image;
+// Discovers flavor cutouts by globbing assets/products/*.png rather than a hardcoded list, so
+// adding/renaming/removing a cutout file needs no code change. "Salted-Caramel.png" ->
+// { slug: 'salted-caramel', file: 'Salted-Caramel.png', label: 'Salted Caramel' }.
+async function listFlavors() {
+  const files = (await readdir(PRODUCTS_DIR)).filter((f) => f.toLowerCase().endsWith('.png'));
+  return files.map((file) => {
+    const base = path.basename(file, path.extname(file));
+    return { slug: base.toLowerCase(), file, label: base.replace(/-/g, ' ') };
+  });
+}
+
+function pickFlavor(flavors) {
+  const { forceFlavorSlug } = config.image;
   if (forceFlavorSlug) {
     const forced = flavors.find((f) => f.slug === forceFlavorSlug);
     if (forced) return forced;
-    console.warn(`generateImage: IMAGE_FORCE_FLAVOR="${forceFlavorSlug}" matches no configured flavor — picking randomly instead.`);
+    console.warn(`generateImage: IMAGE_FORCE_FLAVOR="${forceFlavorSlug}" matches no discovered flavor — picking randomly instead.`);
   }
   return pickRandom(flavors);
 }
 
 async function generateProductSceneImage(article, topic) {
-  const flavor = pickFlavor();
+  const flavors = await listFlavors();
+  if (flavors.length === 0) {
+    throw new Error(`No .png product cutouts found in ${PRODUCTS_DIR}`);
+  }
+  const flavor = pickFlavor(flavors);
   const style = pickRandom(config.image.sceneStyles);
-  const imagePrompt = buildProductScenePrompt(article, topic, style, flavor);
+  const side = Math.random() < 0.5 ? 'left' : 'right';
+  const imagePrompt = buildProductScenePrompt(article, topic, style, flavor, side);
 
   const cutoutPath = path.join(PRODUCTS_DIR, flavor.file);
   const cutoutBuffer = await readFile(cutoutPath);
-  const imageData = await editImage(imagePrompt, cutoutBuffer, flavor.file);
+  // quality:'high' is deliberately hardcoded (not config.image.quality, which defaults to
+  // 'medium' for cost) — validated through prototyping specifically at 'high'; label-text
+  // fidelity on the edit endpoint was never tested at a lower quality tier.
+  const imageData = await editImage(imagePrompt, cutoutBuffer, flavor.file, { quality: 'high' });
   const imageBytes = await getImageBytes(imageData);
 
   return { imagePrompt, imageBytes };
@@ -230,9 +279,9 @@ async function generateLifestyleImage(article, topic) {
 // Image generation/upload is best-effort: on any failure this logs a warning and returns
 // imageUrl: null rather than throwing, so the pipeline can still publish the article without a
 // featured image.
-// Primary path renders a real product pouch (assets/products/) into a lifestyle scene via the
-// Images edit endpoint (see buildProductScenePrompt/editImage). If that fails for any reason
-// (bad reference file, edit endpoint error, etc.) this falls back to the previous text-only
+// Primary path renders the real product pouch (assets/products/) directly into a lifestyle
+// scene via the Images edit endpoint (see buildProductScenePrompt/editImage). If that fails for
+// any reason (no cutouts found, edit endpoint error, etc.) this falls back to a text-only
 // lifestyle scene (no product) rather than leaving the article with no image at all.
 export async function generateImage(article, topic) {
   let imageUrl = null;
@@ -245,7 +294,7 @@ export async function generateImage(article, topic) {
     imageUrl = await uploadToShopifyFiles(result.imageBytes, filename);
     return { imageUrl, imagePrompt };
   } catch (err) {
-    console.warn(`generateImage: product-in-scene edit failed, falling back to text-only lifestyle image — ${err.message}`);
+    console.warn(`generateImage: product-in-scene render failed, falling back to text-only lifestyle image — ${err.message}`);
   }
 
   try {

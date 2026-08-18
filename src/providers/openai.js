@@ -53,16 +53,17 @@ export async function image(
 }
 
 // Product-in-scene featured images: edits a reference image (a real product cutout) into a new
-// scene per `prompt`, instead of generating a scene from text alone. Deliberately a separate
-// model default (config.openai.models.imageEdit, 'gpt-image-1') from image()'s — the
-// text-to-image model configured for this store is not guaranteed to support the edit endpoint.
-// referenceImageBuffer/referenceImageFilename: the raw bytes (must be png/jpeg/webp) and a
-// filename used only to give the upload a correct extension/mimetype hint.
+// scene per `prompt`, instead of generating a scene from text alone — the model renders the
+// pouch itself, in perspective/lighting matched to the scene, reproducing its exact label text
+// (validated against gpt-image-2; see config.openai.models.image). Response item may carry
+// either `b64_json` or `url` depending on the model/request — callers must handle both, same as
+// image() above. referenceImageBuffer/referenceImageFilename: the raw bytes (must be png/jpeg/
+// webp) and a filename used only to give the upload a correct extension/mimetype hint.
 export async function editImage(
   prompt,
   referenceImageBuffer,
   referenceImageFilename,
-  { model = config.openai.models.imageEdit, size = config.image.size, quality = config.image.quality } = {}
+  { model = config.openai.models.image, size = config.image.size, quality = config.image.quality } = {}
 ) {
   const referenceImage = await toFile(referenceImageBuffer, referenceImageFilename, { type: 'image/png' });
   const response = await client.images.edit({ model, image: referenceImage, prompt, size, quality });
