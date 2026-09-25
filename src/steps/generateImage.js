@@ -1,11 +1,12 @@
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { readFile, readdir } from 'node:fs/promises';
 import { image, editImage } from '../providers/openai.js';
 import { graphql } from '../lib/shopify.js';
 import { config } from '../config.js';
 
-const PRODUCTS_DIR = path.join(path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url)))), 'assets', 'products');
+// Product cutouts live with the store, not the engine: stores/<STORE>/products/.
+const PRODUCTS_DIR = config.store.paths.products;
 
 function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
@@ -225,7 +226,7 @@ async function uploadToShopifyFiles(imageBytes, filename) {
   return file.image?.url ?? (await pollForImageUrl(file.id));
 }
 
-// Discovers flavor cutouts by globbing assets/products/*.png rather than a hardcoded list, so
+// Discovers flavor cutouts by globbing stores/<STORE>/products/*.png rather than a hardcoded list, so
 // adding/renaming/removing a cutout file needs no code change. "Salted-Caramel.png" ->
 // { slug: 'salted-caramel', file: 'Salted-Caramel.png', label: 'Salted Caramel' }.
 async function listFlavors() {
@@ -279,7 +280,7 @@ async function generateLifestyleImage(article, topic) {
 // Image generation/upload is best-effort: on any failure this logs a warning and returns
 // imageUrl: null rather than throwing, so the pipeline can still publish the article without a
 // featured image.
-// Primary path renders the real product pouch (assets/products/) directly into a lifestyle
+// Primary path renders the real product pouch (stores/<STORE>/products/) directly into a lifestyle
 // scene via the Images edit endpoint (see buildProductScenePrompt/editImage). If that fails for
 // any reason (no cutouts found, edit endpoint error, etc.) this falls back to a text-only
 // lifestyle scene (no product) rather than leaving the article with no image at all.

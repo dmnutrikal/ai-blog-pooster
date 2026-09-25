@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase.js';
-
-const STORE = 'collagenlab';
+import { STORE } from '../config.js';
 
 export async function countPendingTopics() {
   const { count, error } = await supabase

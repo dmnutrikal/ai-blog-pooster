@@ -7,12 +7,7 @@ import { generateImage } from './steps/generateImage.js';
 import { publishArticle } from './steps/publish.js';
 import { generateTopics } from './steps/generateTopics.js';
 import { supabase } from './lib/supabase.js';
-import { config } from './config.js';
-
-// TODO: single-store for now, same as matchProduct.js/publish.js/etc — see
-// their STORE constants and TODOs about pulling this from config for
-// multi-store support.
-const STORE = 'collagenlab';
+import { config, STORE } from './config.js';
 
 function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
@@ -98,8 +93,8 @@ async function processTopic(topic) {
 async function run() {
   const n = config.pipeline.articlesPerRun;
   console.log(
-    `Starting pipeline run: up to ${n} article(s) | COMPLIANCE_MODE=${config.pipeline.complianceMode} | ` +
-      `PUBLISH_STATUS=${config.pipeline.publishStatus}`
+    `Starting pipeline run: store=${STORE} | up to ${n} article(s) | ` +
+      `COMPLIANCE_MODE=${config.pipeline.complianceMode} | PUBLISH_STATUS=${config.pipeline.publishStatus}`
   );
 
   // Auto-generate more topics BEFORE picking one, if the backlog is running

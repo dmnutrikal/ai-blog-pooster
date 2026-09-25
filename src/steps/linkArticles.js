@@ -1,8 +1,8 @@
 import { pathToFileURL } from 'node:url';
 import { embed } from '../providers/openai.js';
 import { supabase } from '../lib/supabase.js';
+import { STORE } from '../config.js';
 
-const STORE = 'collagenlab';
 const MAX_ARTICLE_LINKS = 2;
 const RPC_MATCH_COUNT = 5;
 

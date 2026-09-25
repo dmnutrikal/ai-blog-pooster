@@ -1,10 +1,10 @@
 import { pathToFileURL } from 'node:url';
 import { generateJson } from '../lib/generateJson.js';
 import { supabase } from '../lib/supabase.js';
-import { config } from '../config.js';
+import { config, STORE } from '../config.js';
 import { containsAccessoryKeyword } from './matchProduct.js';
 
-const DEFAULT_STORE = 'collagenlab';
+const DEFAULT_STORE = STORE;
 const RECENT_PUBLISHED_LIMIT = 100;
 
 async function fetchExistingKeywords(store) {

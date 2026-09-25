@@ -2,10 +2,7 @@ import { pathToFileURL } from 'node:url';
 import { graphql } from '../lib/shopify.js';
 import { supabase } from '../lib/supabase.js';
 import { embed } from '../providers/openai.js';
-
-// TODO: single-store for now. If this pipeline ever serves more than one
-// Shopify store, this should come from config instead of being hardcoded.
-const STORE = 'collagenlab';
+import { STORE } from '../config.js';
 
 const EMBED_BATCH_SIZE = 100;
 

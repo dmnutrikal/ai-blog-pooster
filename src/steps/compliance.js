@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { generateJson } from '../lib/generateJson.js';
 import { config } from '../config.js';
-import { APPROVED_VITAMIN_C_CLAIM_BG, APPROVED_VITAMIN_C_CLAIM_EN } from '../lib/regulatory.js';
+import { APPROVED_VITAMIN_C_CLAIM_BG, APPROVED_VITAMIN_C_CLAIM_EN } from '../lib/storeRegulatory.js';
 
 // Luna audits — it never sees the writing prompt and never wrote the copy
 // itself. It only ever sees the finished article text, same as a human

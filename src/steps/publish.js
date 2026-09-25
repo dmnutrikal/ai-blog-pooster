@@ -1,9 +1,7 @@
 import { graphql } from '../lib/shopify.js';
 import { supabase } from '../lib/supabase.js';
 import { embed } from '../providers/openai.js';
-import { config } from '../config.js';
-
-const STORE = 'collagenlab';
+import { config, STORE } from '../config.js';
 
 const BLOGS_QUERY = `
   query Blogs {

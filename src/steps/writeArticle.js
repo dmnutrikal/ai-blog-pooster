@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { generateJson } from '../lib/generateJson.js';
-import { APPROVED_VITAMIN_C_CLAIM_BG, APPROVED_VITAMIN_C_CLAIM_EN } from '../lib/regulatory.js';
+import { APPROVED_VITAMIN_C_CLAIM_BG, APPROVED_VITAMIN_C_CLAIM_EN } from '../lib/storeRegulatory.js';
 
 // TODO: wire in a CollagenLab-specific approved-claim list (exact allowed
 // phrasing per product line) for tighter, legal/marketing-reviewed control
