@@ -1,15 +1,18 @@
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { supabase } from '../lib/supabase.js';
+import { config, STORE } from '../config.js';
 
-const DEFAULT_STORE = 'collagenlab';
-const DEFAULT_CALENDAR_PATH = path.join(
-  path.dirname(path.dirname(fileURLToPath(import.meta.url))),
-  '..',
-  'data',
-  'calendar.json'
-);
+const DEFAULT_STORE = STORE;
+
+// Resolved per store id, not from the active store, so `npm run load-calendar
+// <store>` loads that store's own calendar: stores/<store>/data/calendar.json.
+function calendarPathFor(store) {
+  return store === config.store.id
+    ? path.join(config.store.paths.data, 'calendar.json')
+    : path.join(path.dirname(config.store.dir), store, 'data', 'calendar.json');
+}
 
 // priority = 100000 - day, so day 1 (published first) gets the highest
 // priority and every calendar row outranks the existing ad-hoc topic backlog
@@ -29,13 +32,13 @@ function toRow(store, entry) {
   };
 }
 
-// Reads the fixed editorial calendar (data/calendar.json) and upserts every
+// Reads the fixed editorial calendar (stores/<store>/data/calendar.json) and upserts every
 // record into `topics` for the given store. Values are passed as a
 // parameterized row object to the Supabase client (never interpolated into a
 // raw SQL string), so UTF-8 Bulgarian text with punctuation is handled safely.
 // onConflict targets the (store, keyword) unique pair — DO UPDATE, so
 // re-running the loader after editing calendar.json is idempotent.
-export async function loadCalendar(store = DEFAULT_STORE, calendarPath = DEFAULT_CALENDAR_PATH) {
+export async function loadCalendar(store = DEFAULT_STORE, calendarPath = calendarPathFor(store)) {
   const raw = await readFile(calendarPath, 'utf8');
   const entries = JSON.parse(raw);
 

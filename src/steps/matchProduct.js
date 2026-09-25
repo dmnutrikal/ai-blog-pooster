@@ -1,9 +1,8 @@
 import { pathToFileURL } from 'node:url';
 import { embed } from '../providers/openai.js';
 import { supabase } from '../lib/supabase.js';
-import { config } from '../config.js';
+import { config, STORE } from '../config.js';
 
-const STORE = 'collagenlab';
 const RPC_MATCH_COUNT = 5;
 
 // Runs before writeArticle() — there is no article yet, so the query is
@@ -81,7 +80,7 @@ export async function matchProduct(topic) {
 // products table (logged loudly rather than silently skipped, since a
 // misconfigured handle should be fixed, not quietly ignored).
 export async function fetchPrimaryProduct() {
-  const handle = config.products.primaryHandleByStore[STORE];
+  const handle = config.products.primaryHandle;
   if (!handle) return null;
 
   const { data, error } = await supabase
