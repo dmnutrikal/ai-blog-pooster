@@ -1,41 +1,22 @@
 import { pathToFileURL } from 'node:url';
 import { generateJson } from '../lib/generateJson.js';
-import { APPROVED_VITAMIN_C_CLAIM_BG, APPROVED_VITAMIN_C_CLAIM_EN } from '../lib/storeRegulatory.js';
+import { WRITER_GUARDRAILS_BG, WRITER_GUARDRAILS_EN } from '../lib/storeRegulatory.js';
+import { WRITER_STORE_BG, WRITER_STORE_EN, LINK_EXAMPLES } from '../lib/storeContent.js';
+import { config } from '../config.js';
 
-// TODO: wire in a CollagenLab-specific approved-claim list (exact allowed
-// phrasing per product line) for tighter, legal/marketing-reviewed control
-// once that list exists. Until then this is a general EC 1924/2006 guardrail.
-const CLAIM_GUARDRAILS_BG = `
-РЕГУЛАТОРНИ ОГРАНИЧЕНИЯ — Регламент (ЕО) № 1924/2006 относно хранителни и здравни претенции:
-- Съдържанието е за ХРАНИТЕЛНА ДОБАВКА (колагенови пептиди), НЕ лекарство.
-- НИКОГА не твърди и не подразбирай, че продуктът лекува, облекчава, предотвратява или изцелява
-  заболяване или медицинско състояние. Забранени формулировки (и техни еквиваленти): "лекува",
-  "възстановява ставите", "против артрит", "премахва бръчки" — като обещание за продукта.
-- НИКОГА не приписвай конкретни здравословни резултати на приема на колаген като установен факт.
-- НИКОГА не твърди, че продуктът е "безопасно за всички" или "подходящо за всеки" — хранителните
-  добавки могат да имат противопоказания. НИКОГА не давай дозировка като медицински съвет.
-- ИЗБЯГВАЙ превъзходни степени за ефективност: "най-добрият", "доказано ефективен",
-  "гарантиран резултат" и подобни.
-- РАЗРЕШЕНО: описание на биологичната роля на колагена (структурен протеин в кожата, хрущяла,
-  съединителната тъкан), обща информация за хранене, и че естественият синтез на колаген намалява
-  с възрастта — представено като образователна информация, не като претенция за продукта.
-- Предпочитай предпазливи, информативни формулировки: "може да", "според някои изследвания",
-  "структурен протеин, който участва в...".
-- ЕДИНСТВЕНАТА одобрена здравна претенция, свързана с колагена в ЕС, е за ВИТАМИН C, не за
-  колагеновите пептиди самостоятелно: "${APPROVED_VITAMIN_C_CLAIM_BG}" Ако статията споменава
-  тази одобрена претенция, тя ТРЯБВА да бъде приписана изрично на витамин C, с точно тази
-  формулировка (или близък до нея коректен превод) — не измисляй здравни претенции за самите
-  колагенови пептиди, тъй като те нямат одобрени претенции.
-- НИКОГА не използвай формулировки за ефективността на самия колаген от рода на "изследванията
-  показват обещаващи резултати за хидратацията/еластичността на кожата" или "доказано подобрява
-  кожата/ставите" — дори хеджирани с "може да" или "според някои изследвания". Единствената
-  претенция, свързана с колаген, която статията може да съдържа, е одобрената претенция за
-  витамин C по-горе; всичко останало за ролята на колагена трябва да остане чисто описателно
-  (структурен белтък, естествен спад на синтеза с възрастта) — без намек за резултат от прием.
-- Статията ТРЯБВА да включва естествено, близо до края, задължителното предупреждение:
-  "Хранителните добавки не са заместител на разнообразното хранене и здравословния начин на
-  живот."
-`.trim();
+// The active store's claim guardrails — stores/<STORE>/regulatory.js. What the
+// article may and may not claim is entirely store-specific.
+const CLAIM_GUARDRAILS_BG = WRITER_GUARDRAILS_BG;
+
+// Told to whichever writer produces the store's primary/canonical language
+// (store.config.js primaryLocale) — the other language is published as its
+// Shopify translation (see publish.js).
+function primaryLanguageNote(locale) {
+  if (locale !== config.store.primaryLocale) return '';
+  const language = locale === 'en' ? 'English' : 'Bulgarian';
+  return ` ${language} is this store's primary/canonical
+content language.`;
+}
 
 const PRODUCT_LINK_INSTRUCTIONS_BG = `
 ЛИНК КЪМ ПРОДУКТ (по избор):
@@ -45,10 +26,10 @@ const PRODUCT_LINK_INSTRUCTIONS_BG = `
 - Спомени го като HTML връзка във формàта: <a href="URL">ТЕКСТ НА ВРЪЗКАТА</a>, като URL идва
   от предоставения ПРОДУКТ по-долу. За ТЕКСТ НА ВРЪЗКАТА използвай ТОЧНО текста, посочен по-долу
   като "ТЕКСТ НА ВРЪЗКАТА В ТЕКСТА" (ако е предоставен) — вплети го естествено в изречението,
-  дори когато не е самото име на продукта (напр. само "колаген" или "CollagenLab"). Ако такъв
+  дори когато не е самото име на продукта (напр. ${LINK_EXAMPLES.anchorBg}). Ако такъв
   текст НЕ е предоставен, използвай точното българско име на продукта като текст на връзката.
 - Това ТРЯБВА да звучи като естествено редакционно споменаване — например докато обясняваш
-  как хората обичайно приемат колагенови пептиди или каква форма избират — а НЕ като реклама
+  ${LINK_EXAMPLES.contextBg} — а НЕ като реклама
   или като изречение от типа "разгледайте нашия продукт", добавено накрая.
 - НЕ добавяй никакви претенции за продукта в това изречение — важат същите регулаторни
   ограничения (EC 1924/2006) като за останалата част от статията.
@@ -75,8 +56,7 @@ const PRODUCT_LINK_INSTRUCTIONS_BG = `
 `.trim();
 
 const BG_SYSTEM_PROMPT = `
-You are an expert Bulgarian SEO content writer for CollagenLab, an e-commerce store selling
-collagen peptide food supplements in Bulgaria/the EU.
+You are an expert Bulgarian SEO content writer for ${WRITER_STORE_BG}.${primaryLanguageNote('bg')}
 
 ${CLAIM_GUARDRAILS_BG}
 
@@ -117,35 +97,7 @@ or after. The JSON object must have exactly these keys:
 }
 `.trim();
 
-const CLAIM_GUARDRAILS_EN = `
-REGULATORY GUARDRAILS — EU Regulation (EC) No 1924/2006 on nutrition and health claims:
-- This is content for a FOOD SUPPLEMENT (collagen peptides), NOT a medicine.
-- NEVER state or imply the product treats, cures, alleviates, prevents, or heals any disease
-  or medical condition. Forbidden phrasing (and equivalents): "treats", "cures", "reverses
-  joint damage", "removes wrinkles" — as a product promise.
-- NEVER attribute specific health outcomes to collagen supplementation as an established fact.
-- NEVER claim the product is "safe for everyone" or "suitable for everyone" — supplements can
-  have contraindications. NEVER present dosage as medical advice.
-- AVOID superlatives about efficacy: "the best", "proven effective", "guaranteed results", and
-  similar.
-- ALLOWED: describing collagen's biological role (structural protein in skin, cartilage,
-  connective tissue), general nutrition science, and that natural collagen synthesis declines
-  with age — framed as education, not as a claim about the product.
-- Prefer cautious, informative phrasing: "may", "some studies suggest", "a structural protein
-  involved in...".
-- The ONLY authorised collagen-adjacent health claim in the EU is for VITAMIN C, not for
-  collagen peptides on their own: "${APPROVED_VITAMIN_C_CLAIM_EN}" If the article mentions this
-  authorised claim, it MUST be attributed explicitly to vitamin C, using this exact wording (or
-  a close, accurate translation) — do not invent health claims for collagen peptides themselves,
-  since they have no authorised claims.
-- NEVER use collagen-efficacy phrasing such as "studies show promising results for skin
-  hydration/elasticity" or "proven to improve skin/joints" — even hedged with "may" or "some
-  studies suggest". The only collagen-related claim the article may contain is the authorised
-  vitamin C claim above; everything else about collagen's role must stay purely descriptive
-  (structural protein, natural decline in synthesis with age) — no implied outcome from taking it.
-- The article MUST naturally include, near the end, the mandatory disclaimer: "Food supplements
-  should not be used as a substitute for a varied and balanced diet and a healthy lifestyle."
-`.trim();
+const CLAIM_GUARDRAILS_EN = WRITER_GUARDRAILS_EN;
 
 const PRODUCT_LINK_INSTRUCTIONS_EN = `
 PRODUCT LINK (optional):
@@ -155,10 +107,10 @@ PRODUCT LINK (optional):
 - Mention it as an HTML link in this exact form: <a href="URL">LINK TEXT</a>, using the URL from
   the provided PRODUCT below. For LINK TEXT, use EXACTLY the text given below as "INLINE ANCHOR
   TEXT" (if provided) — weave it naturally into the sentence, even when it isn't the product name
-  itself (e.g. just "collagen" or "CollagenLab"). If no such text is provided, use the exact
+  itself (e.g. ${LINK_EXAMPLES.anchorEn}). If no such text is provided, use the exact
   product name as the link text instead.
 - This MUST read as a natural editorial mention — for example while explaining how people
-  typically take collagen peptides or what format they choose — NOT as an advertisement or a
+  ${LINK_EXAMPLES.contextEn} — NOT as an advertisement or a
   "check out our product" line bolted on at the end.
 - Do NOT make any product claims in that sentence — the same regulatory guardrails (EC
   1924/2006) apply to it as to the rest of the article.
@@ -184,9 +136,7 @@ CLOSING CTA (only if a PRODUCT is provided):
 `.trim();
 
 const EN_SYSTEM_PROMPT = `
-You are an expert English SEO content writer for CollagenLab, an e-commerce store selling
-collagen peptide food supplements in the EU. English is this store's primary/canonical
-content language.
+You are an expert English SEO content writer for ${WRITER_STORE_EN}.${primaryLanguageNote('en')}
 
 ${CLAIM_GUARDRAILS_EN}
 
@@ -317,9 +267,10 @@ function buildEnPrompt(topic, product, anchors, fixedTitleEn) {
 // title_en are then forced back to these exact strings regardless of what the model actually
 // returned, since a model can still lightly reword a title despite instructions. When absent,
 // title_bg/title_en come straight from the model as before.
-// English (primary/canonical) and Bulgarian (priority-market) are generated
-// independently and in parallel — neither is a translation/adaptation of the
-// other, both are full-quality articles under the same EC 1924/2006 guardrails.
+// English and Bulgarian are generated independently and in parallel — neither
+// is a translation/adaptation of the other, both are full-quality articles
+// under the same store guardrails. Which one is canonical is decided at publish
+// time from store.config.js's primaryLocale.
 export async function writeArticle(topic, { product = null, anchors = null, fixedTitleBg = null, fixedTitleEn = null } = {}) {
   const [bgArticle, enArticle] = await Promise.all([
     generateJson({ system: BG_SYSTEM_PROMPT, prompt: buildBgPrompt(topic, product, anchors, fixedTitleBg) }),

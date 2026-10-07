@@ -2,14 +2,19 @@ import { pathToFileURL } from 'node:url';
 import { graphql } from '../lib/shopify.js';
 import { supabase } from '../lib/supabase.js';
 import { embed } from '../providers/openai.js';
-import { STORE } from '../config.js';
+import { config, STORE } from '../config.js';
 
 const EMBED_BATCH_SIZE = 100;
 
 // Only sync ACTIVE (published) products — drafts/archived items should never
 // end up linked into articles.
+// The store's Shopify base language is its primaryLocale; the other language
+// comes from that locale's registered translations. The products table keeps
+// fixed columns regardless: title = English name, title_bg = Bulgarian name.
+const { primaryLocale, secondaryLocale } = config.store;
+
 const PRODUCTS_QUERY = `
-  query SyncProducts($cursor: String) {
+  query SyncProducts($cursor: String, $translationLocale: String!) {
     products(first: 50, after: $cursor, query: "status:ACTIVE") {
       edges {
         cursor
@@ -21,7 +26,11 @@ const PRODUCTS_QUERY = `
           productType
           tags
           onlineStoreUrl
-          translations(locale: "bg") {
+          seo {
+            title
+            description
+          }
+          translations(locale: $translationLocale) {
             key
             value
           }
@@ -40,7 +49,7 @@ async function fetchAllProducts() {
   let hasNextPage = true;
 
   while (hasNextPage) {
-    const data = await graphql(PRODUCTS_QUERY, { cursor });
+    const data = await graphql(PRODUCTS_QUERY, { cursor, translationLocale: secondaryLocale });
     const edges = data.products.edges;
 
     for (const edge of edges) {
@@ -54,27 +63,11 @@ async function fetchAllProducts() {
   return products;
 }
 
-function buildEmbeddingInput(product) {
-  // TODO: tune this composite string if match_products relevance turns out
-  // to weight some fields too heavily (e.g. tags dominating description).
-  const bg = bgTranslations(product);
-  return [
-    product.title,
-    bg.title,
-    product.description,
-    bg.body_html,
-    product.productType,
-    (product.tags ?? []).join(', '),
-  ]
-    .filter(Boolean)
-    .join('\n');
-}
-
-// Reads the "bg" locale translation set nested on each product (see
-// PRODUCTS_QUERY's `translations(locale: "bg")`), keyed by field name.
-// Products with no Bulgarian translation registered in Shopify simply
-// produce an empty map here, so the *_bg columns stay null.
-function bgTranslations(product) {
+// Reads the secondary-locale translation set nested on each product (see
+// PRODUCTS_QUERY's `translations(locale: $translationLocale)`), keyed by field
+// name. Products with no translation registered in Shopify simply produce an
+// empty map here, so the corresponding columns stay null / fall back.
+function translationsByKey(product) {
   const byKey = {};
   for (const t of product.translations ?? []) {
     byKey[t.key] = t.value;
@@ -82,22 +75,66 @@ function bgTranslations(product) {
   return byKey;
 }
 
+// Normalizes a product into its English/Bulgarian fields, whichever of the two
+// is Shopify's base language for this store.
+function localize(product) {
+  const tr = translationsByKey(product);
+  if (primaryLocale === 'en') {
+    // English base (collagenlab): Bulgarian comes from the 'bg' translations.
+    return {
+      titleEn: product.title,
+      titleBg: tr.title ?? null,
+      descriptionEn: product.description,
+      descriptionBgHtml: tr.body_html ?? null,
+      description: product.description,
+      metaTitleBg: tr.meta_title ?? null,
+      metaDescriptionBg: tr.meta_description ?? null,
+    };
+  }
+  // Bulgarian base (gutexpert): English comes from the 'en' translations.
+  return {
+    titleEn: tr.title ?? product.title,
+    titleBg: product.title,
+    descriptionEn: null,
+    descriptionBgHtml: null,
+    // The Bulgarian plain-text description — what the topic generator reads.
+    description: product.description,
+    metaTitleBg: product.seo?.title ?? null,
+    metaDescriptionBg: product.seo?.description ?? null,
+  };
+}
+
+function buildEmbeddingInput(product) {
+  // TODO: tune this composite string if match_products relevance turns out
+  // to weight some fields too heavily (e.g. tags dominating description).
+  const l = localize(product);
+  const parts =
+    primaryLocale === 'en'
+      ? [l.titleEn, l.titleBg, l.descriptionEn, l.descriptionBgHtml]
+      : // Bulgarian-first: topics are Bulgarian, so the BG title + description
+        // carry the match. The English title is kept as a secondary signal; the
+        // English body translation is left out (it carries on-page styling/CSS
+        // and marketing copy, not useful matching signal).
+        [l.titleBg, l.description, l.titleEn];
+  return [...parts, product.productType, (product.tags ?? []).join(', ')].filter(Boolean).join('\n');
+}
+
 function toRow(product, embedding) {
-  const bg = bgTranslations(product);
+  const l = localize(product);
   return {
     store: STORE,
     shopify_gid: product.id,
     handle: product.handle,
-    title: product.title,
-    title_bg: bg.title ?? null,
-    description: product.description,
+    title: l.titleEn,
+    title_bg: l.titleBg,
+    description: l.description,
     product_type: product.productType,
     tags: product.tags,
     url: product.onlineStoreUrl,
     embedding,
     // Not used anywhere yet — stored for future SEO/meta work.
-    meta_title_bg: bg.meta_title ?? null,
-    meta_description_bg: bg.meta_description ?? null,
+    meta_title_bg: l.metaTitleBg,
+    meta_description_bg: l.metaDescriptionBg,
   };
 }
 

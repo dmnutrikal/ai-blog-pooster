@@ -30,7 +30,7 @@ Key design principles used throughout this codebase:
 - **Shared engine, per-store folders** — `src/` holds the pipeline and contains nothing store-specific; each store's config, regulatory wording, product cutouts and editorial calendar live in `stores/<id>/`. Adding a store is a new folder plus its secrets, with no engine code change.
 - **Fail-closed safety gate** — the publish step only proceeds past its safety gate on an explicit, unambiguous compliance pass. A missing, malformed, or negative compliance result is treated as unsafe by construction, not by convention.
 - **Idempotent product sync with reconciliation and safety caps** — syncing the product catalog is safe to re-run at any time: it upserts current data and reconciles (removes) stale entries, with a safety cap that refuses to delete more than it just synced, to protect against partial-fetch failures being mistaken for real churn.
-- **Per-store data scoping** — every table carries a store identifier column, so the schema already supports multiple stores sharing the same database. Every query scopes on the active `STORE`, though only `collagenlab` is wired up today.
+- **Per-store data scoping** — every table carries a store identifier column, so the schema already supports multiple stores sharing the same database. Every query scopes on the active `STORE`; `collagenlab` and `gutexpert` are wired up today.
 - **Sequential processing with per-item error isolation** — articles are processed one at a time (not in parallel, to respect API rate limits and keep logs readable), and each is wrapped in its own error boundary so one failure is logged and skipped rather than aborting the run.
 
 ## Tech Stack
@@ -57,16 +57,22 @@ which store a run operates on (default `collagenlab`).
 
 ```
 stores/
-├── collagenlab/           The only store currently wired up.
-│   ├── store.config.js    Store id, the env-var NAMES holding this store's secrets,
-│   │                      and its fallback product handle. No secret values.
-│   ├── regulatory.js      This store's approved regulatory claim text.
+├── collagenlab/           English-primary store (EN main article + BG translation).
+│   ├── store.config.js    Store id, primaryLocale/secondaryLocale, the env-var NAMES
+│   │                      holding this store's secrets, fallback product handle and
+│   │                      product-link anchor pools. No secret values.
+│   ├── regulatory.js      Compliance profile: approved claim text, writer guardrails,
+│   │                      auditor brief, image restrictions, mandatory disclaimer.
+│   ├── content.js         Editorial voice: how prompts describe the store, link
+│   │                      examples, topic-generator brief, image styling.
 │   ├── products/          Product cutout PNGs used to render featured images.
 │   ├── data/
 │   │   └── calendar.json  The fixed editorial calendar loaded into `topics`.
 │   └── recipes/           Recipe images. Reserved — nothing reads this yet.
 │
-├── gutexpert/             Placeholder — not wired up. See its README.md.
+├── gutexpert/             Bulgarian-primary store (BG main article + EN translation).
+│                          Same files as collagenlab minus data/ — its topics come from
+│                          the topic generator, not a fixed calendar. See its README.md.
 └── madebynaturelabs/      Placeholder — not wired up. See its README.md.
 
 src/
@@ -88,8 +94,9 @@ src/
 │   ├── supabase.js        Shared server-side Supabase client.
 │   ├── generateJson.js    Shared helper for requesting strict-JSON model output and
 │   │                      retrying once on a malformed response.
-│   └── storeRegulatory.js Loads the ACTIVE store's stores/<STORE>/regulatory.js and
-│                          re-exports it, so the engine holds no store's claim text.
+│   ├── storeRegulatory.js Loads the ACTIVE store's stores/<STORE>/regulatory.js and
+│   │                      re-exports it, so the engine holds no store's claim text.
+│   └── storeContent.js    Same for stores/<STORE>/content.js (the store's voice).
 │
 └── steps/
     ├── syncProducts.js    Fetches active products from the store, embeds them, and

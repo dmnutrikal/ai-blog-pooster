@@ -9,8 +9,16 @@ import { generateTopics } from './steps/generateTopics.js';
 import { supabase } from './lib/supabase.js';
 import { config, STORE } from './config.js';
 
+// Empty pool -> undefined, so writeArticle.js falls back to the product name.
 function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
+}
+
+// The store's anchor pools, with any per-product override (store.config.js
+// productLink.byHandle[<handle>]) layered on top.
+function anchorPoolsFor(product) {
+  const { byHandle, ...pools } = config.productLink;
+  return { ...pools, ...(byHandle?.[product.handle] ?? {}) };
 }
 
 // The model is instructed to weave the product in only if it genuinely fits
@@ -41,12 +49,19 @@ async function processTopic(topic) {
   // A fresh random anchor pair per article/per language keeps the product
   // link from reading as "Exact Product Name" every single time — see
   // config.productLink and writeArticle.js's PRODUCT_LINK_INSTRUCTIONS_*.
+  const pools = product ? anchorPoolsFor(product) : null;
+  // Optional per-product display names (productLink.byHandle[<handle>].nameBg/
+  // nameEn) replace the Shopify title in the writer prompt — for stores whose
+  // product titles carry claims that must not be echoed in articles.
+  if (product && (pools.nameBg || pools.nameEn)) {
+    product = { ...product, title_bg: pools.nameBg ?? product.title_bg, title: pools.nameEn ?? product.title };
+  }
   const anchors = product
     ? {
-        inlineAnchorBg: pickRandom(config.productLink.inlineAnchorsBg),
-        ctaAnchorBg: pickRandom(config.productLink.ctaAnchorsBg),
-        inlineAnchorEn: pickRandom(config.productLink.inlineAnchorsEn),
-        ctaAnchorEn: pickRandom(config.productLink.ctaAnchorsEn),
+        inlineAnchorBg: pickRandom(pools.inlineAnchorsBg),
+        ctaAnchorBg: pickRandom(pools.ctaAnchorsBg),
+        inlineAnchorEn: pickRandom(pools.inlineAnchorsEn),
+        ctaAnchorEn: pickRandom(pools.ctaAnchorsEn),
       }
     : null;
 
@@ -75,7 +90,7 @@ async function processTopic(topic) {
   // imageUrl: null on any error) — this try/catch is a second safety net in
   // case of an unexpected error outside that internal handling.
   try {
-    const { imageUrl } = await generateImage(article, topic);
+    const { imageUrl } = await generateImage(article, topic, { productHandle: product?.handle });
     article.imageUrl = imageUrl;
   } catch (err) {
     console.warn(`  Topic ${topic.id}: generateImage threw unexpectedly, continuing without an image — ${err.message}`);

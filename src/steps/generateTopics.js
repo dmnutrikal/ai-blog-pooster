@@ -3,6 +3,7 @@ import { generateJson } from '../lib/generateJson.js';
 import { supabase } from '../lib/supabase.js';
 import { config, STORE } from '../config.js';
 import { containsAccessoryKeyword } from './matchProduct.js';
+import { TOPIC_BRIEF } from '../lib/storeContent.js';
 
 const DEFAULT_STORE = STORE;
 const RECENT_PUBLISHED_LIMIT = 100;
@@ -40,33 +41,11 @@ async function fetchProducts(store) {
   return data ?? [];
 }
 
+// The niche, grounding and compliance rules for proposed topics are the active
+// store's TOPIC_BRIEF (stores/<STORE>/content.js); the engine fixes the output
+// shape.
 const SYSTEM_PROMPT = `
-You are a Bulgarian SEO content strategist for CollagenLab, an e-commerce store selling
-collagen peptide food supplements in Bulgaria/the EU.
-
-TASK: Propose NEW Bulgarian blog topics as {keyword, angle} pairs — the same shape this store's
-existing topic backlog uses (e.g. keyword="говежди колаген", angle="как да изберем").
-
-REQUIREMENTS:
-- Both "keyword" and "angle" are short Bulgarian phrases, in the same terse, lowercase,
-  non-sentence style as the EXISTING KEYWORDS shown below (not full sentences, no punctuation).
-- Every proposed topic MUST be relevant to the collagen-supplement niche and, where natural,
-  grounded in what this store's PRODUCTS actually are (see below) — but topics do not have to
-  name a specific product.
-- NEVER propose a topic about an accessory or non-ingestible item — dosing scoops/spoons,
-  shakers, mixing bottles, packaging, or similar. Every topic must focus on the collagen
-  supplement itself (the ingestible product), not tools used to measure or mix it.
-- Every proposed topic MUST NOT duplicate or closely paraphrase any keyword in EXISTING
-  KEYWORDS, nor closely paraphrase the topic of any title in RECENTLY PUBLISHED TITLES. Do not
-  just swap a synonym for an existing keyword (e.g. if "колаген за кожа" exists, do not propose
-  "колаген за кожата" or "ползи на колагена за кожата").
-- Angles MUST suit EC 1924/2006-compliant articles: label-reading, how-to, comparison,
-  buying-guide, or general informational framing only. NEVER propose an angle framed around
-  treating, curing, or preventing a disease or medical condition, and never an angle that implies
-  a guaranteed health outcome from taking collagen.
-- Prefer variety across angle types (how-to, comparison, label-reading, myth-busting,
-  informational/explainer, buying-guide) rather than repeating the same angle shape for every
-  topic.
+${TOPIC_BRIEF}
 
 OUTPUT FORMAT: Respond with STRICT JSON only — no markdown code fences, no commentary before or
 after. The JSON object must have exactly this shape:

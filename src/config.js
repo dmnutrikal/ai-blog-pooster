@@ -51,7 +51,22 @@ const storePaths = {
   // Approved claim wording. src/lib/storeRegulatory.js loads this for the active
   // store; compliance.js and writeArticle.js import it from there.
   regulatory: path.join(STORE_DIR, 'regulatory.js'),
+  // Editorial voice (who the store is, link examples, topic brief, image
+  // styling). src/lib/storeContent.js loads this for the active store.
+  content: path.join(STORE_DIR, 'content.js'),
 };
+
+// Article language direction — see stores/<id>/store.config.js. writeArticle.js
+// generates exactly these two languages, so each store picks an order of them.
+const SUPPORTED_LOCALES = new Set(['en', 'bg']);
+const primaryLocale = storeConfig.primaryLocale ?? 'en';
+const secondaryLocale = storeConfig.secondaryLocale ?? 'bg';
+if (!SUPPORTED_LOCALES.has(primaryLocale) || !SUPPORTED_LOCALES.has(secondaryLocale) || primaryLocale === secondaryLocale) {
+  throw new Error(
+    `stores/${STORE}/store.config.js: primaryLocale/secondaryLocale must be two different values from ` +
+      `${[...SUPPORTED_LOCALES].join(', ')} (got "${primaryLocale}"/"${secondaryLocale}").`
+  );
+}
 
 const env = storeConfig.env ?? {};
 
@@ -59,13 +74,16 @@ const env = storeConfig.env ?? {};
 const REQUIRED_SHARED_VARS = ['OPENAI_API_KEY', 'SUPABASE_URL', 'SUPABASE_SECRET_KEY'];
 
 // ...and the store's own credentials, under whatever var names it declares.
-// Required — the pipeline cannot run at all without these.
+// Required — the pipeline cannot run at all without these. The public domain
+// isn't a secret, so a store may hardcode it (shopify.publicDomain in its
+// store.config.js) instead of declaring an env var; only then is the env var
+// optional (it still overrides when set).
 const REQUIRED_VARS = [
   ...REQUIRED_SHARED_VARS,
   env.shopifyStoreDomain,
   env.shopifyClientId,
   env.shopifyClientSecret,
-  env.storePublicDomain,
+  storeConfig.shopify?.publicDomain ? null : env.storePublicDomain,
 ].filter(Boolean);
 
 function missingVars() {
@@ -113,6 +131,12 @@ export const config = {
     id: STORE,
     dir: STORE_DIR,
     paths: storePaths,
+    // Byline on published articles (publish.js).
+    brandName: storeConfig.brand?.name ?? STORE,
+    // PRIMARY = main/canonical article fields; SECONDARY = registered Shopify
+    // translation (publish.js).
+    primaryLocale,
+    secondaryLocale,
   },
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
@@ -138,13 +162,15 @@ export const config = {
     // admin/API host) or the shop's primaryDomain — confirmed live for
     // collagenlab: products' onlineStoreUrl resolves on collagenlab.bg, which is
     // neither the admin domain nor shop.primaryDomain (collagenlab.eu).
-    publicDomain: fromStoreEnv(env.storePublicDomain),
+    publicDomain: fromStoreEnv(env.storePublicDomain, storeConfig.shopify?.publicDomain ?? null),
     clientId: fromStoreEnv(env.shopifyClientId),
     clientSecret: fromStoreEnv(env.shopifyClientSecret),
     apiVersion: process.env.SHOPIFY_API_VERSION ?? '2026-07',
     // Deferred to the first real publish run — publish.js falls back to
     // fetching+logging the store's default blog if this isn't set yet.
     blogGid: fromStoreEnv(env.blogGid, storeConfig.shopify?.blogGid ?? null),
+    // Named in publish.js's "no blog configured" warning.
+    blogGidVar: env.blogGid ?? null,
   },
   pipeline: {
     complianceMode: process.env.COMPLIANCE_MODE ?? 'block',
@@ -218,13 +244,15 @@ export const config = {
   productLink: {
     // Anchor text pools for the product link(s) woven into an article — one
     // inline anchor and one CTA anchor are chosen at random per article (see
-    // index.js's processTopic()) so articles don't all read "Exact Product
-    // Name" verbatim. writeArticle.js falls back to the full product name if
-    // no anchor is provided (e.g. no product matched for the topic).
-    inlineAnchorsBg: ['колаген', 'колаген за кожа', 'телешки колаген', 'CollagenLab', 'хидролизиран телешки колаген'],
-    ctaAnchorsBg: ['Поръчайте сега', 'Кликнете тук', 'Разгледайте продукта', 'Вижте CollagenLab'],
-    inlineAnchorsEn: ['collagen', 'collagen for skin', 'bovine collagen', 'CollagenLab', 'hydrolysed bovine collagen'],
-    ctaAnchorsEn: ['Order now', 'Shop now', 'Check it out', 'Discover CollagenLab'],
+    // index.js's processTopic()). Per store: stores/<STORE>/store.config.js's
+    // productLink, optionally overridden per product handle via byHandle.
+    // writeArticle.js falls back to the full product name when a pool is empty.
+    inlineAnchorsBg: [],
+    ctaAnchorsBg: [],
+    inlineAnchorsEn: [],
+    ctaAnchorsEn: [],
+    byHandle: {},
+    ...storeConfig.productLink,
   },
   topics: {
     // If a run finds fewer than this many 'pending' topics for the store,

@@ -32,12 +32,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # One job per store. Adding a store later means: a new stores/<id>/ folder
-  # (store.config.js + regulatory.js + products/ + data/ — see
-  # stores/<id>/README.md), that store's secrets added to the repository
-  # secrets, and a new job here (or converting this job to a matrix over
-  # store ids). Deliberately NOT built out yet — collagenlab is the only
-  # store wired up.
+  # One job per store, all on the schedule above. Adding a store means: a new
+  # stores/<id>/ folder (store.config.js + regulatory.js + content.js +
+  # products/ — see stores/<id>/README.md), that store's secrets added to the
+  # repository secrets, and a new job here. Jobs are independent: one store
+  # failing never stops another.
   run-pipeline:
     runs-on: ubuntu-latest
 
@@ -73,4 +72,63 @@ jobs:
           SHOPIFY_STORE_DOMAIN: ${{ secrets.SHOPIFY_STORE_DOMAIN }}
           SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+        run: npm run run
+
+  # GutExpert — same schedule and steps as collagenlab above, different store.
+  #
+  # To DISABLE without editing this file: set the repository variable
+  # GUTEXPERT_AUTOBLOG=off (Settings -> Secrets and variables -> Actions ->
+  # Variables). Any other value, or unset, leaves it enabled.
+  #
+  # Also a no-op until its Shopify secrets exist: the first step checks for
+  # them and every later step is skipped (job stays green) if any is missing.
+  # Blog GID and public domain are hardcoded in stores/gutexpert/store.config.js.
+  run-pipeline-gutexpert:
+    if: vars.GUTEXPERT_AUTOBLOG != 'off'
+    runs-on: ubuntu-latest
+
+    env:
+      STORE: gutexpert
+      COMPLIANCE_MODE: block
+      ARTICLES_PER_RUN: 1
+      PUBLISH_STATUS: published
+
+    steps:
+      - name: Check GutExpert secrets
+        id: secrets
+        env:
+          SHOPIFY_STORE_DOMAIN_GUTEXPERT: ${{ secrets.SHOPIFY_STORE_DOMAIN_GUTEXPERT }}
+          SHOPIFY_CLIENT_ID_GUTEXPERT: ${{ secrets.SHOPIFY_CLIENT_ID_GUTEXPERT }}
+          SHOPIFY_CLIENT_SECRET_GUTEXPERT: ${{ secrets.SHOPIFY_CLIENT_SECRET_GUTEXPERT }}
+        run: |
+          if [ -n "$SHOPIFY_STORE_DOMAIN_GUTEXPERT" ] && [ -n "$SHOPIFY_CLIENT_ID_GUTEXPERT" ] && [ -n "$SHOPIFY_CLIENT_SECRET_GUTEXPERT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::GutExpert secrets not set — skipping the GutExpert pipeline."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Run pipeline
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SHOPIFY_STORE_DOMAIN_GUTEXPERT: ${{ secrets.SHOPIFY_STORE_DOMAIN_GUTEXPERT }}
+          SHOPIFY_CLIENT_ID_GUTEXPERT: ${{ secrets.SHOPIFY_CLIENT_ID_GUTEXPERT }}
+          SHOPIFY_CLIENT_SECRET_GUTEXPERT: ${{ secrets.SHOPIFY_CLIENT_SECRET_GUTEXPERT }}
         run: npm run run

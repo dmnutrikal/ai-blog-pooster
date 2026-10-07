@@ -35,7 +35,7 @@ const ARTICLE_CREATE = `
 `;
 
 // Confirmed real translatable keys for an Article: title, body_html,
-// summary_html, handle, meta_description (see registerBulgarianTranslation).
+// summary_html, handle, meta_description (see registerTranslation).
 const TRANSLATABLE_CONTENT_QUERY = `
   query TranslatableContent($resourceId: ID!) {
     translatableResource(resourceId: $resourceId) {
@@ -75,9 +75,10 @@ async function resolveBlogGid() {
     throw new Error('No blogs found on this Shopify store — create one in Shopify admin first.');
   }
 
+  const blogVar = config.shopify.blogGidVar ?? 'the blog GID';
   console.warn(
-    `BLOG_GID_COLLAGENLAB is not set in .env — using the store's first blog "${blog.title}" (${blog.id}). ` +
-      `Add BLOG_GID_COLLAGENLAB=${blog.id} to .env so future runs don't have to guess.`
+    `${blogVar} is not set — using the store's first blog "${blog.title}" (${blog.id}). ` +
+      `Set ${blogVar}=${blog.id} (or shopify.blogGid in stores/${STORE}/store.config.js) so future runs don't have to guess.`
   );
   return blog.id;
 }
@@ -97,26 +98,38 @@ function adminUrlFor(articleGid) {
   return `https://${config.shopify.storeDomain}/admin/articles/${numericId}`;
 }
 
+// The article's content in one locale, keyed by the Shopify Article field it
+// belongs in. writeArticle.js produces both languages under *_bg / *_en names.
+function localizedFields(article, locale) {
+  return {
+    title: article[`title_${locale}`],
+    body: article[`body_${locale}_html`],
+    summary: article[`summary_${locale}`],
+    meta: article[`meta_${locale}`],
+  };
+}
+
 // Best-effort: on any failure, the caller logs a warning with the exact error
-// and the English article publish itself is NOT rolled back. The store's
+// and the primary-locale article publish itself is NOT rolled back. The store's
 // separate Translate & Adapt app reads from this same Translations API, so a
-// successful call here makes the Bulgarian text show up there as a
+// successful call here makes the secondary-locale text show up there as a
 // high-quality (non-machine) translation rather than its own auto-translation.
-async function registerBulgarianTranslation(articleGid, article) {
+async function registerTranslation(articleGid, article, locale) {
   const data = await graphql(TRANSLATABLE_CONTENT_QUERY, { resourceId: articleGid });
   const content = data.translatableResource?.translatableContent ?? [];
 
   // Confirmed against the live 2026-07 schema (via debug script): an Article's
   // translatableContent exposes title, body_html, summary_html, handle, and
   // meta_description. We deliberately do NOT translate "handle" — we don't
-  // generate a Bulgarian handle, and forcing one isn't worth it; it stays the
-  // English slug. The other four are registered whenever Shopify exposes them
-  // for this resource (checked dynamically below rather than assumed).
+  // generate a per-locale handle, and forcing one isn't worth it; it stays the
+  // primary-locale slug. The other four are registered whenever Shopify exposes
+  // them for this resource (checked dynamically below rather than assumed).
+  const localized = localizedFields(article, locale);
   const fieldsToTranslate = {
-    title: article.title_bg,
-    body_html: article.body_bg_html,
-    summary_html: article.summary_bg,
-    meta_description: article.meta_bg,
+    title: localized.title,
+    body_html: localized.body,
+    summary_html: localized.summary,
+    meta_description: localized.meta,
   };
 
   const translations = [];
@@ -124,7 +137,7 @@ async function registerBulgarianTranslation(articleGid, article) {
   for (const [key, value] of Object.entries(fieldsToTranslate)) {
     const original = content.find((c) => c.key === key);
     if (original) {
-      translations.push({ locale: 'bg', key, value, translatableContentDigest: original.digest });
+      translations.push({ locale, key, value, translatableContentDigest: original.digest });
     } else {
       skippedKeys.push(key);
     }
@@ -132,7 +145,7 @@ async function registerBulgarianTranslation(articleGid, article) {
 
   if (skippedKeys.length > 0) {
     console.warn(
-      `registerBulgarianTranslation: Shopify did not expose translatable key(s) [${skippedKeys.join(', ')}] ` +
+      `registerTranslation(${locale}): Shopify did not expose translatable key(s) [${skippedKeys.join(', ')}] ` +
         `for ${articleGid} — skipped (available keys: ${content.map((c) => c.key).join(', ') || 'none'}).`
     );
   }
@@ -153,8 +166,10 @@ async function registerBulgarianTranslation(articleGid, article) {
 // article: { title_bg, meta_bg, body_bg_html, summary_bg, title_en, meta_en,
 //            body_en_html, summary_en, imageUrl, compliance: { passed, flags },
 //            topic_id, linked_products }
-// English is PRIMARY/canonical (main article fields, SEO); Bulgarian is
-// registered as a Shopify translation (locale 'bg') on top of it.
+// The store's PRIMARY locale (store.config.js primaryLocale) goes in the main,
+// canonical article fields (SEO); its SECONDARY locale is registered as a
+// Shopify translation on top. collagenlab: en main + bg translation.
+// gutexpert: bg main + en translation.
 export async function publishArticle(article) {
   // CRITICAL SAFETY GATE — must run before anything touches Shopify.
   // Deliberately an allowlist (must be === true), not a blocklist (=== false):
@@ -199,19 +214,21 @@ export async function publishArticle(article) {
 
   // PUBLISH (gate passed, or compliance mode isn't 'block')
   const blogGid = await resolveBlogGid();
+  const { primaryLocale, secondaryLocale } = config.store;
+  const primary = localizedFields(article, primaryLocale);
 
   // TODO: confirm "global"/"description_tag" (type "single_line_text_field")
   // is still the correct reserved metafield for Article SEO meta description
   // on the 2026-07 API before relying on this in production.
   const articleInput = {
     blogId: blogGid,
-    title: article.title_en,
-    body: article.body_en_html,
-    summary: article.summary_en,
+    title: primary.title,
+    body: primary.body,
+    summary: primary.summary,
     // TODO: confirm the desired author byline with the store owner.
-    author: { name: 'CollagenLab' },
+    author: { name: config.store.brandName },
     isPublished: config.pipeline.publishStatus === 'published',
-    metafields: [{ namespace: 'global', key: 'description_tag', type: 'single_line_text_field', value: article.meta_en }],
+    metafields: [{ namespace: 'global', key: 'description_tag', type: 'single_line_text_field', value: primary.meta }],
     ...(article.imageUrl ? { image: { url: article.imageUrl } } : {}),
   };
 
@@ -224,10 +241,10 @@ export async function publishArticle(article) {
   const articleUrl = publicUrlFor(createdArticle);
 
   try {
-    await registerBulgarianTranslation(createdArticle.id, article);
+    await registerTranslation(createdArticle.id, article, secondaryLocale);
   } catch (err) {
     console.warn(
-      `publishArticle: Bulgarian translation registration failed, English article was still published — ${err.message}`
+      `publishArticle: ${secondaryLocale} translation registration failed, ${primaryLocale} article was still published — ${err.message}`
     );
   }
 

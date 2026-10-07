@@ -2,13 +2,16 @@ import { pathToFileURL } from 'node:url';
 import { embed } from '../providers/openai.js';
 import { supabase } from '../lib/supabase.js';
 import { STORE } from '../config.js';
+import { DISCLAIMER_BG } from '../lib/storeRegulatory.js';
 
 const MAX_ARTICLE_LINKS = 2;
 const RPC_MATCH_COUNT = 5;
 
-// Must match the exact sentence writeArticle.js's mandatory disclaimer starts
-// with, so links get inserted right before it rather than after.
-const BG_DISCLAIMER_MARKER = 'Хранителните добавки не са заместител';
+// The opening words of the active store's mandatory BG disclaimer
+// (stores/<STORE>/regulatory.js), so links get inserted right before it rather
+// than after. Only the first few words, so a model that slightly rewords the
+// tail of the disclaimer still gets matched.
+const BG_DISCLAIMER_MARKER = DISCLAIMER_BG.split(' ').slice(0, 5).join(' ');
 
 // Runs AFTER writeArticle() — needs the finished title_bg to embed against,
 // unlike matchProduct.js's topic-only query (which runs before an article

@@ -1,28 +1,27 @@
-# gutexpert — not wired up yet
+# gutexpert
 
-Placeholder. This store is **not** runnable: the engine only loads a store when
-`STORE=gutexpert` is set, and it will fail at startup until the files below exist.
-Nothing here is referenced by the CollagenLab pipeline.
+GutExpert (gutexpert.bg) — gut-focused food supplements. Selected with `STORE=gutexpert`.
 
-## What this folder needs
+**Bulgarian-primary**: the shop's base language is Bulgarian, so each article's
+Bulgarian version goes in the main (canonical) Shopify article fields and the
+English version is registered as its `en` translation (`primaryLocale: 'bg'`,
+`secondaryLocale: 'en'`). collagenlab is the reverse.
 
 | Path | What it is |
 | --- | --- |
-| `store.config.js` | Store id, the env-var NAMES holding this store's Shopify credentials / blog GID / public domain, and the fallback product handle. Copy `stores/collagenlab/store.config.js` as the template. **No secret values in this file — it is committed.** |
-| `regulatory.js` | This store's approved claim wording. Must export the same named constants the engine imports (`APPROVED_VITAMIN_C_CLAIM_BG`, `APPROVED_VITAMIN_C_CLAIM_EN`) — see `stores/collagenlab/regulatory.js`. |
-| `products/` | Product cutout PNGs for the featured image. `generateImage.js` globs `*.png` here; the filename becomes the flavor label (`Wild-Berries.png` -> "Wild Berries"). At least one file, or image generation falls back to a product-free lifestyle scene. |
-| `data/` | `calendar.json` — the editorial calendar `loadCalendar.js` upserts into `topics`. Same record shape as `stores/collagenlab/data/calendar.json`. |
-| `recipes/` | Optional. Recipe images, resolved as `config.store.paths.recipes`. Nothing reads this yet. |
+| `store.config.js` | Id, locales, env-var NAMES for the Shopify credentials, public domain + blog GID (hardcoded, not secrets), fallback product (`probiotic-complex`), and per-product anchor pools + claim-free display names (`productLink.byHandle`). |
+| `regulatory.js` | Compliance profile. The ONLY approved claim is lactase in a lactose context (`APPROVED_LACTASE_CLAIM_*`); no benefit claims for probiotics / live cultures / CFU, butyrate/tributyrin or enzyme blends; on-pack phrases not echoed as claims; mandatory disclaimer. |
+| `content.js` | Editorial voice: how prompts describe the store, link examples, topic-generator brief, image styling. |
+| `products/` | Transparent bottle cutouts named by product **handle** (`probiotic-complex.png`, `multi-enzyme-complex.png`, `butyrate-tributyrin.png`, `lactase.png`). The featured image uses the cutout of the product the article links. |
+
+No `data/calendar.json` — the backlog comes from the topic generator
+(`STORE=gutexpert npm run generate-topics -- gutexpert --write`), and `npm run run`
+tops it up automatically when fewer than `MIN_PENDING_TOPICS` are pending.
 
 ## Secrets
 
-Add this store's values to the environment (local `.env`, and GitHub repository
-secrets for CI) under the var names declared in its `store.config.js` — e.g.
-`BLOG_GID_GUTEXPERT`. Never commit them.
-
-## Turning it on
-
-1. Fill in the files above.
-2. Add the secrets.
-3. Add an Actions job (or matrix entry) with `STORE: gutexpert` in
-   `.github/workflows/autoblog.yml`.
+`SHOPIFY_STORE_DOMAIN_GUTEXPERT`, `SHOPIFY_CLIENT_ID_GUTEXPERT`,
+`SHOPIFY_CLIENT_SECRET_GUTEXPERT` — in local `.env`, and as GitHub repository
+secrets for the `run-pipeline-gutexpert` job in `.github/workflows/autoblog.yml`.
+That job skips itself until all three secrets exist, and can be switched off with
+the repository variable `GUTEXPERT_AUTOBLOG=off`.
