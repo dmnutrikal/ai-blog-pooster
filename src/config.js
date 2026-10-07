@@ -68,6 +68,12 @@ if (!SUPPORTED_LOCALES.has(primaryLocale) || !SUPPORTED_LOCALES.has(secondaryLoc
   );
 }
 
+// Whether created articles go live ('published') or are created Hidden in
+// Shopify for manual review ('draft'). Per store — stores/<id>/store.config.js's
+// publishStatus. PUBLISH_STATUS in the environment overrides it when set (handy
+// for a one-off local test run).
+const publishStatus = process.env.PUBLISH_STATUS?.trim() || storeConfig.publishStatus || 'draft';
+
 const env = storeConfig.env ?? {};
 
 // Shared across every store...
@@ -106,10 +112,10 @@ function assertValid() {
     );
   }
 
-  const publishStatus = process.env.PUBLISH_STATUS ?? 'draft';
   if (!PUBLISH_STATUSES.has(publishStatus)) {
     throw new Error(
-      `Invalid PUBLISH_STATUS "${publishStatus}". Must be one of: ${[...PUBLISH_STATUSES].join(', ')}.`
+      `Invalid publish status "${publishStatus}" for store "${STORE}" (stores/${STORE}/store.config.js ` +
+        `publishStatus, or PUBLISH_STATUS). Must be one of: ${[...PUBLISH_STATUSES].join(', ')}.`
     );
   }
 }
@@ -175,7 +181,7 @@ export const config = {
   pipeline: {
     complianceMode: process.env.COMPLIANCE_MODE ?? 'block',
     articlesPerRun: Number(process.env.ARTICLES_PER_RUN ?? 1),
-    publishStatus: process.env.PUBLISH_STATUS ?? 'draft',
+    publishStatus,
   },
   linking: {
     // Below this cosine similarity, a product match is too weak to be a

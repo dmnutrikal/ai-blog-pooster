@@ -167,7 +167,7 @@ All configuration is read from environment variables via `src/config.js`, which 
 | `BLOG_GID_COLLAGENLAB` | GID of the Shopify blog articles are published into. If unset, the pipeline discovers and logs the store's default blog GID on first run. |
 | `COMPLIANCE_MODE` | `block` \| `log` \| `off` — whether a failed compliance audit blocks publishing, is only logged, or is skipped entirely. |
 | `ARTICLES_PER_RUN` | Number of articles processed per pipeline invocation. |
-| `PUBLISH_STATUS` | `draft` \| `published` — whether created articles require manual review or go live immediately. |
+| `PUBLISH_STATUS` | Optional override of the store's `publishStatus` (set per store in `stores/<id>/store.config.js`): `draft` (created Hidden, for manual review) \| `published` (live immediately). |
 | `LINK_MIN_SIMILARITY` | Minimum cosine similarity for a product to qualify as a genuine internal-link match. |
 | `ACCESSORY_KEYWORDS` | Comma-separated keywords used to exclude non-primary product types from internal linking. |
 | `IMAGE_SIZE` | Dimensions of the generated featured image. |

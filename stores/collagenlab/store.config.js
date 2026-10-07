@@ -21,6 +21,10 @@ export default {
   primaryLocale: 'en',
   secondaryLocale: 'bg',
 
+  // 'draft' = articles are created Hidden in Shopify for manual review;
+  // 'published' = they go live immediately.
+  publishStatus: 'published',
+
   // Names of the env vars holding this store's credentials/identifiers.
   // src/config.js reads process.env[...] through these and requires the four
   // marked `required` below to be non-empty before the pipeline may start.
