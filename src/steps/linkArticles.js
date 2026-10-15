@@ -1,23 +1,34 @@
 import { pathToFileURL } from 'node:url';
 import { embed } from '../providers/openai.js';
 import { supabase } from '../lib/supabase.js';
-import { STORE } from '../config.js';
-import { DISCLAIMER_BG } from '../lib/storeRegulatory.js';
+import { config, STORE } from '../config.js';
+import { DISCLAIMER_BG, DISCLAIMER_EN } from '../lib/storeRegulatory.js';
 
 const MAX_ARTICLE_LINKS = 2;
 const RPC_MATCH_COUNT = 5;
 
-// The opening words of the active store's mandatory BG disclaimer
-// (stores/<STORE>/regulatory.js), so links get inserted right before it rather
-// than after. Only the first few words, so a model that slightly rewords the
-// tail of the disclaimer still gets matched.
-const BG_DISCLAIMER_MARKER = DISCLAIMER_BG.split(' ').slice(0, 5).join(' ');
+// The language related-article links go into: Bulgarian whenever the store
+// generates it (as both two-language stores always have), otherwise the
+// store's primary language.
+const LINK_LOCALE = config.store.locales.includes('bg') ? 'bg' : config.store.primaryLocale;
 
-// Runs AFTER writeArticle() — needs the finished title_bg to embed against,
+// The opening words of a mandatory disclaimer (stores/<STORE>/regulatory.js),
+// so snippets get inserted right before it rather than after. Only the first
+// few words, so a model that slightly rewords the tail of the disclaimer still
+// gets matched.
+export function disclaimerMarker(disclaimer) {
+  return disclaimer.split(' ').slice(0, 5).join(' ');
+}
+
+const DISCLAIMER_MARKER = disclaimerMarker(LINK_LOCALE === 'bg' ? DISCLAIMER_BG : DISCLAIMER_EN);
+
+const RELATED_LABEL = { bg: 'Свързани статии:', en: 'Related articles:' };
+
+// Runs AFTER writeArticle() — needs the finished title to embed against,
 // unlike matchProduct.js's topic-only query (which runs before an article
 // exists).
 export async function embedQuery(article, topic) {
-  return embed(`${article.title_bg}\n${topic.keyword}`);
+  return embed(`${article[`title_${LINK_LOCALE}`]}\n${topic.keyword}`);
 }
 
 export async function fetchCandidateArticles(queryEmbedding) {
@@ -37,16 +48,22 @@ export async function fetchCandidateArticles(queryEmbedding) {
   );
 }
 
-function buildArticleLinksBg(articles) {
+function buildArticleLinks(candidates) {
+  // Non-BG link text needs title_<LINK_LOCALE> from match_articles (which only
+  // returned title_bg originally) — skip rather than render an untitled link.
+  const articles =
+    LINK_LOCALE === 'bg' ? candidates : candidates.filter((a) => a[`title_${LINK_LOCALE}`] ?? a.title);
   if (articles.length === 0) return '';
-  const items = articles.map((a) => `<li><a href="${a.url}">${a.title_bg ?? a.title}</a></li>`).join('');
-  return `<p>Свързани статии:</p><ul>${items}</ul>`;
+  const items = articles
+    .map((a) => `<li><a href="${a.url}">${a[`title_${LINK_LOCALE}`] ?? a.title}</a></li>`)
+    .join('');
+  return `<p>${RELATED_LABEL[LINK_LOCALE]}</p><ul>${items}</ul>`;
 }
 
 // Inserts `snippet` right before the <p> containing `marker`. If the marker
 // isn't found (shouldn't happen once compliance.js has run), appends at the
 // end instead of silently dropping the links.
-function insertBeforeDisclaimer(html, snippet, marker) {
+export function insertBeforeDisclaimer(html, snippet, marker) {
   if (!snippet) return html;
 
   const markerIndex = html.indexOf(marker);
@@ -59,7 +76,8 @@ function insertBeforeDisclaimer(html, snippet, marker) {
   return html.slice(0, insertAt) + snippet + html.slice(insertAt);
 }
 
-// article: the object returned by writeArticle() (needs title_bg, body_bg_html).
+// article: the object returned by writeArticle() (needs title_<LINK_LOCALE>,
+// body_<LINK_LOCALE>_html).
 // topic: { keyword, angle }.
 // Product linking no longer happens here — matchProduct.js finds a product
 // BEFORE writing, and writeArticle() weaves it into the prose directly. This
@@ -71,11 +89,12 @@ export async function linkArticles(article, topic) {
   const candidateArticles = await fetchCandidateArticles(queryEmbedding);
   const linkedArticles = candidateArticles.slice(0, MAX_ARTICLE_LINKS);
 
-  const bgSnippet = buildArticleLinksBg(linkedArticles);
+  const snippet = buildArticleLinks(linkedArticles);
+  const bodyKey = `body_${LINK_LOCALE}_html`;
 
   return {
     ...article,
-    body_bg_html: insertBeforeDisclaimer(article.body_bg_html, bgSnippet, BG_DISCLAIMER_MARKER),
+    [bodyKey]: insertBeforeDisclaimer(article[bodyKey], snippet, DISCLAIMER_MARKER),
   };
 }
 

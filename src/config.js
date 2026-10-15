@@ -57,15 +57,59 @@ const storePaths = {
 };
 
 // Article language direction — see stores/<id>/store.config.js. writeArticle.js
-// generates exactly these two languages, so each store picks an order of them.
+// generates exactly the languages in `locales`: primary, plus secondary unless
+// the store sets secondaryLocale: null (single-language store — no translation
+// is registered). Omitting secondaryLocale keeps the historical default 'bg'.
 const SUPPORTED_LOCALES = new Set(['en', 'bg']);
 const primaryLocale = storeConfig.primaryLocale ?? 'en';
-const secondaryLocale = storeConfig.secondaryLocale ?? 'bg';
-if (!SUPPORTED_LOCALES.has(primaryLocale) || !SUPPORTED_LOCALES.has(secondaryLocale) || primaryLocale === secondaryLocale) {
+const secondaryLocale = storeConfig.secondaryLocale === undefined ? 'bg' : storeConfig.secondaryLocale;
+if (
+  !SUPPORTED_LOCALES.has(primaryLocale) ||
+  (secondaryLocale !== null && !SUPPORTED_LOCALES.has(secondaryLocale)) ||
+  primaryLocale === secondaryLocale
+) {
   throw new Error(
-    `stores/${STORE}/store.config.js: primaryLocale/secondaryLocale must be two different values from ` +
-      `${[...SUPPORTED_LOCALES].join(', ')} (got "${primaryLocale}"/"${secondaryLocale}").`
+    `stores/${STORE}/store.config.js: primaryLocale must be one of ${[...SUPPORTED_LOCALES].join(', ')} and ` +
+      'secondaryLocale either a different one of them or null ' +
+      `(got "${primaryLocale}"/"${secondaryLocale}").`
   );
+}
+const locales = [primaryLocale, secondaryLocale].filter(Boolean);
+
+// Whether the store has a Shopify product catalog to sync, match and link
+// (syncProducts.js, matchProduct.js, generateTopics.js). Default on; a store
+// with nothing to sell sets catalog: { enabled: false }.
+const catalogEnabled = storeConfig.catalog?.enabled ?? true;
+
+// Featured-image strategy (generateImage.js): 'product-scene' renders a product
+// cutout from stores/<id>/products/ into a scene (text-only scene as fallback);
+// 'scene-only' goes straight to the text-only lifestyle scene.
+const IMAGE_MODES = new Set(['product-scene', 'scene-only']);
+const imageMode = storeConfig.image?.mode ?? 'product-scene';
+if (!IMAGE_MODES.has(imageMode)) {
+  throw new Error(
+    `stores/${STORE}/store.config.js: image.mode must be one of ${[...IMAGE_MODES].join(', ')} (got "${imageMode}").`
+  );
+}
+
+// Optional fixed call-to-action inserted by code (insertCta.js) before the
+// English disclaimer — store.config.js cta: { anchorEn, leadInEn }. The URL
+// comes from B2B_CTA_URL_<STORE> and is required once cta is configured.
+const ctaUrlVar = `B2B_CTA_URL_${STORE.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+let cta = null;
+if (storeConfig.cta) {
+  const url = process.env[ctaUrlVar]?.trim();
+  const { anchorEn, leadInEn } = storeConfig.cta;
+  if (!url) {
+    throw new Error(`Store "${STORE}" configures a cta but ${ctaUrlVar} is not set.`);
+  }
+  if (typeof anchorEn !== 'string' || anchorEn.trim() === '' || typeof leadInEn !== 'string') {
+    throw new Error(`stores/${STORE}/store.config.js: cta needs a non-empty string anchorEn and a string leadInEn.`);
+  }
+  if (!locales.includes('en')) {
+    throw new Error(`stores/${STORE}/store.config.js: cta is English-only, but the store has no 'en' locale.`);
+  }
+  cta = { url, anchorEn, leadInEn };
 }
 
 // Whether created articles go live ('published') or are created Hidden in
@@ -142,8 +186,16 @@ export const config = {
     // PRIMARY = main/canonical article fields; SECONDARY = registered Shopify
     // translation (publish.js).
     primaryLocale,
+    // null for a single-language store.
     secondaryLocale,
+    // [primary, secondary] minus null — the languages actually generated.
+    locales,
   },
+  catalog: {
+    enabled: catalogEnabled,
+  },
+  // { url, anchorEn, leadInEn } or null — see insertCta.js.
+  cta,
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
     models: {
@@ -200,6 +252,8 @@ export const config = {
       .filter(Boolean),
   },
   image: {
+    // 'product-scene' | 'scene-only' — see generateImage.js.
+    mode: imageMode,
     // Blog thumbnail, not a hero image — keep size/quality modest for cost.
     size: process.env.IMAGE_SIZE ?? '1024x1024',
     quality: process.env.IMAGE_QUALITY ?? 'medium',

@@ -3,7 +3,7 @@ import { generateJson } from '../lib/generateJson.js';
 import { supabase } from '../lib/supabase.js';
 import { config, STORE } from '../config.js';
 import { containsAccessoryKeyword } from './matchProduct.js';
-import { TOPIC_BRIEF } from '../lib/storeContent.js';
+import { TOPIC_BRIEF, TOPIC_CONTEXT } from '../lib/storeContent.js';
 
 const DEFAULT_STORE = STORE;
 const RECENT_PUBLISHED_LIMIT = 100;
@@ -107,11 +107,21 @@ async function insertTopics(store, topics) {
   return (data ?? []).length;
 }
 
+// Stores with a catalog ground topics in their products; catalog-less stores
+// (config.catalog.enabled false) in their content.js TOPIC_CONTEXT instead.
+function buildGroundingBlock(products) {
+  if (config.catalog.enabled) {
+    return `PRODUCTS (this store's catalog — ground topics in these where natural):
+${formatProductsBlock(products)}`;
+  }
+  return `STORE CONTEXT (what this store is about — ground topics in this):
+${TOPIC_CONTEXT ?? '(none provided — rely on the brief above)'}`;
+}
+
 function buildPrompt({ count, existingKeywords, recentArticles, products }) {
   return `Propose exactly ${count} NEW topics.
 
-PRODUCTS (this store's catalog — ground topics in these where natural):
-${formatProductsBlock(products)}
+${buildGroundingBlock(products)}
 
 EXISTING KEYWORDS (all statuses — do NOT duplicate or closely paraphrase any of these):
 ${formatExistingKeywordsBlock(existingKeywords)}
@@ -138,7 +148,7 @@ export async function generateTopics(store, { count = 15, dryRun = true } = {}) 
   const [existingKeywords, recentArticles, products] = await Promise.all([
     fetchExistingKeywords(store),
     fetchRecentPublishedTitles(store),
-    fetchProducts(store),
+    config.catalog.enabled ? fetchProducts(store) : [],
   ]);
 
   const result = await generateJson({

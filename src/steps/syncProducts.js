@@ -139,6 +139,13 @@ function toRow(product, embedding) {
 }
 
 export async function syncProducts() {
+  // No catalog (config.catalog.enabled false) -> nothing to sync. Returns
+  // before touching Shopify or the products table.
+  if (!config.catalog.enabled) {
+    console.log(`Store "${STORE}" has no product catalog (catalog.enabled false) — nothing to sync.`);
+    return 0;
+  }
+
   const products = await fetchAllProducts();
   console.log(`Fetched ${products.length} product(s) from Shopify.`);
 

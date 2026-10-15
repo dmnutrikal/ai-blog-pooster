@@ -16,17 +16,21 @@ import { config } from '../config.js';
 // importers still get plain named constants.
 const storeRegulatory = await import(pathToFileURL(config.store.paths.regulatory).href);
 
+// Per-language exports are required only for the languages the store
+// generates (config.store.locales) — a single-language store need not carry
+// the other language's guardrails or disclaimer.
+const { locales } = config.store;
 const REQUIRED_EXPORTS = [
   // Writer guardrails, one per article language (writeArticle.js).
-  'WRITER_GUARDRAILS_BG',
-  'WRITER_GUARDRAILS_EN',
+  ...(locales.includes('bg') ? ['WRITER_GUARDRAILS_BG'] : []),
+  ...(locales.includes('en') ? ['WRITER_GUARDRAILS_EN'] : []),
   // Independent auditor brief, minus the JSON output format (compliance.js).
   'AUDIT_BRIEF',
   // Restrictions appended to every featured-image prompt (generateImage.js).
   'IMAGE_RULES',
-  // Mandatory disclaimer, verbatim (linkArticles.js anchors on the BG one).
-  'DISCLAIMER_BG',
-  'DISCLAIMER_EN',
+  // Mandatory disclaimer, verbatim (linkArticles.js / insertCta.js anchor on it).
+  ...(locales.includes('bg') ? ['DISCLAIMER_BG'] : []),
+  ...(locales.includes('en') ? ['DISCLAIMER_EN'] : []),
 ];
 
 const missing = REQUIRED_EXPORTS.filter((name) => typeof storeRegulatory[name] !== 'string');

@@ -169,7 +169,7 @@ async function registerTranslation(articleGid, article, locale) {
 // The store's PRIMARY locale (store.config.js primaryLocale) goes in the main,
 // canonical article fields (SEO); its SECONDARY locale is registered as a
 // Shopify translation on top. collagenlab: en main + bg translation.
-// gutexpert: bg main + en translation.
+// gutexpert: bg main + en translation. secondaryLocale null: main fields only.
 export async function publishArticle(article) {
   // CRITICAL SAFETY GATE — must run before anything touches Shopify.
   // Deliberately an allowlist (must be === true), not a blocklist (=== false):
@@ -240,15 +240,20 @@ export async function publishArticle(article) {
   const createdArticle = createData.articleCreate.article;
   const articleUrl = publicUrlFor(createdArticle);
 
-  try {
-    await registerTranslation(createdArticle.id, article, secondaryLocale);
-  } catch (err) {
-    console.warn(
-      `publishArticle: ${secondaryLocale} translation registration failed, ${primaryLocale} article was still published — ${err.message}`
-    );
+  // Single-language stores (secondaryLocale null) have no translation.
+  if (secondaryLocale) {
+    try {
+      await registerTranslation(createdArticle.id, article, secondaryLocale);
+    } catch (err) {
+      console.warn(
+        `publishArticle: ${secondaryLocale} translation registration failed, ${primaryLocale} article was still published — ${err.message}`
+      );
+    }
   }
 
-  const articleEmbedding = await embed(article.title_bg);
+  // The Bulgarian title when there is one (as for both two-language stores),
+  // else the primary-language title.
+  const articleEmbedding = await embed(article.title_bg ?? article[`title_${primaryLocale}`]);
   const now = new Date().toISOString();
 
   // NOTE: the Shopify article above already exists at this point. If either

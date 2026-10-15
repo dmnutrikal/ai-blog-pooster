@@ -273,18 +273,22 @@ async function generateLifestyleImage(article, topic) {
 // scene via the Images edit endpoint (see buildProductScenePrompt/editImage). If that fails for
 // any reason (no cutouts found, edit endpoint error, etc.) this falls back to a text-only
 // lifestyle scene (no product) rather than leaving the article with no image at all.
+// config.image.mode 'scene-only' skips the product path entirely (no products/
+// read, no edit endpoint) and goes straight to the text-only lifestyle scene.
 export async function generateImage(article, topic, { productHandle = null } = {}) {
   let imageUrl = null;
   let imagePrompt = null;
 
-  try {
-    const result = await generateProductSceneImage(article, topic, productHandle);
-    imagePrompt = result.imagePrompt;
-    const filename = `${STORE}-article-${Date.now()}.png`;
-    imageUrl = await uploadToShopifyFiles(result.imageBytes, filename);
-    return { imageUrl, imagePrompt };
-  } catch (err) {
-    console.warn(`generateImage: product-in-scene render failed, falling back to text-only lifestyle image — ${err.message}`);
+  if (config.image.mode === 'product-scene') {
+    try {
+      const result = await generateProductSceneImage(article, topic, productHandle);
+      imagePrompt = result.imagePrompt;
+      const filename = `${STORE}-article-${Date.now()}.png`;
+      imageUrl = await uploadToShopifyFiles(result.imageBytes, filename);
+      return { imageUrl, imagePrompt };
+    } catch (err) {
+      console.warn(`generateImage: product-in-scene render failed, falling back to text-only lifestyle image — ${err.message}`);
+    }
   }
 
   try {

@@ -20,12 +20,14 @@ function calendarPathFor(store) {
 function toRow(store, entry) {
   return {
     store,
-    keyword: entry.keyphrase_bg,
-    angle: entry.cluster_bg,
+    // An English-only store's calendar carries keyphrase_en/cluster_en/
+    // pillar_en instead; the _bg fields win whenever present.
+    keyword: entry.keyphrase_bg ?? entry.keyphrase_en,
+    angle: entry.cluster_bg ?? entry.cluster_en,
     fixed_title_bg: entry.title_bg,
     fixed_title_en: entry.title_en,
     intent: entry.intent,
-    pillar: entry.pillar_bg,
+    pillar: entry.pillar_bg ?? entry.pillar_en,
     day: entry.day,
     status: 'pending',
     priority: 100000 - entry.day,

@@ -31,22 +31,24 @@ before or after. The JSON object must have exactly these keys:
 If you find no violations at all, return "passed": true and "flags": [].
 `.trim();
 
+const LANGUAGE_NAMES = { en: 'ENGLISH', bg: 'BULGARIAN' };
+
+// Audits only the languages the store generates (config.store.locales),
+// English first then Bulgarian, as before.
 function buildAuditPrompt(article) {
-  return [
-    '=== ENGLISH (en) ===',
-    `Title: ${article.title_en}`,
-    `Meta description: ${article.meta_en}`,
-    `Summary: ${article.summary_en}`,
-    'Body (HTML):',
-    article.body_en_html,
-    '',
-    '=== BULGARIAN (bg) ===',
-    `Title: ${article.title_bg}`,
-    `Meta description: ${article.meta_bg}`,
-    `Summary: ${article.summary_bg}`,
-    'Body (HTML):',
-    article.body_bg_html,
-  ].join('\n');
+  return ['en', 'bg']
+    .filter((locale) => config.store.locales.includes(locale))
+    .map((locale) =>
+      [
+        `=== ${LANGUAGE_NAMES[locale]} (${locale}) ===`,
+        `Title: ${article[`title_${locale}`]}`,
+        `Meta description: ${article[`meta_${locale}`]}`,
+        `Summary: ${article[`summary_${locale}`]}`,
+        'Body (HTML):',
+        article[`body_${locale}_html`],
+      ].join('\n')
+    )
+    .join('\n\n');
 }
 
 async function runLunaAudit(article) {

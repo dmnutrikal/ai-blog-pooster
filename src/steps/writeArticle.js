@@ -18,7 +18,17 @@ function primaryLanguageNote(locale) {
 content language.`;
 }
 
-const PRODUCT_LINK_INSTRUCTIONS_BG = `
+// Stores without a catalog (config.catalog.enabled false) never get a product,
+// so the product-link/CTA instructions (and their LINK_EXAMPLES) are replaced by
+// a plain prohibition. Any store CTA is inserted by code afterwards (insertCta.js).
+const NO_PRODUCT_LINKS_BG =
+  'ЛИНКОВЕ КЪМ ПРОДУКТИ: няма — не добавяй връзки към продукти и не добавяй ред с покана за действие (CTA).';
+const NO_PRODUCT_LINKS_EN =
+  'PRODUCT LINKS: none — do not add any product links and do not add a call-to-action line.';
+
+const PRODUCT_LINK_INSTRUCTIONS_BG = !config.catalog.enabled
+  ? NO_PRODUCT_LINKS_BG
+  : `
 ЛИНК КЪМ ПРОДУКТ (по избор):
 - Ако по-долу е предоставен ПРОДУКТ, спомени го ТОЧНО ВЕДНЪЖ вътре в основния текст на
   body_bg_html — в изречение, където естествено пасва на редакционния контекст (не в отделно,
@@ -99,7 +109,9 @@ or after. The JSON object must have exactly these keys:
 
 const CLAIM_GUARDRAILS_EN = WRITER_GUARDRAILS_EN;
 
-const PRODUCT_LINK_INSTRUCTIONS_EN = `
+const PRODUCT_LINK_INSTRUCTIONS_EN = !config.catalog.enabled
+  ? NO_PRODUCT_LINKS_EN
+  : `
 PRODUCT LINK (optional):
 - If a PRODUCT is provided below, mention it EXACTLY ONCE inside the main body text of
   body_en_html — inside a sentence where it genuinely fits the editorial flow (not as a
@@ -135,6 +147,10 @@ CLOSING CTA (only if a PRODUCT is provided):
   is provided, do not add any CTA line at all.
 `.trim();
 
+// Whether a Bulgarian article is generated alongside the English one — the
+// English prompts only mention a Bulgarian counterpart/phrasing when it is.
+const HAS_BG = config.store.locales.includes('bg');
+
 const EN_SYSTEM_PROMPT = `
 You are an expert English SEO content writer for ${WRITER_STORE_EN}.${primaryLanguageNote('en')}
 
@@ -143,10 +159,10 @@ ${CLAIM_GUARDRAILS_EN}
 ${PRODUCT_LINK_INSTRUCTIONS_EN}
 
 TASK: Write a complete, high-quality, marketing-grade English SEO blog article for the given
-topic. This is NOT a translation or adaptation of another article — write an independently
+topic.${HAS_BG ? ` This is NOT a translation or adaptation of another article — write an independently
 researched, native-English article of equal depth and quality to a Bulgarian counterpart
 covering the same topic. The keyword/angle below may be phrased in Bulgarian; write natively
-in English about the same underlying concept rather than translating the phrasing literally.
+in English about the same underlying concept rather than translating the phrasing literally.` : ''}
 
 REQUIREMENTS:
 - Natural, fluent English, as if written by a native English SEO copywriter.
@@ -241,11 +257,15 @@ function buildBgPrompt(topic, product, anchors, fixedTitleBg) {
 
 function buildEnPrompt(topic, product, anchors, fixedTitleEn) {
   const angleLine = topic.angle
-    ? `Angle/focus (noted in Bulgarian — write about this same angle, natively in English): ${topic.angle}`
+    ? HAS_BG
+      ? `Angle/focus (noted in Bulgarian — write about this same angle, natively in English): ${topic.angle}`
+      : `Angle/focus: ${topic.angle}`
     : 'No specific angle given — choose an appropriate informative focus for the topic.';
   return [
     buildFixedTitleLineEn(fixedTitleEn),
-    `Topic keyword (Bulgarian phrasing — translate the underlying concept, do not write in Bulgarian): ${topic.keyword}`,
+    HAS_BG
+      ? `Topic keyword (Bulgarian phrasing — translate the underlying concept, do not write in Bulgarian): ${topic.keyword}`
+      : `Topic keyword: ${topic.keyword}`,
     angleLine,
     buildProductLineEn(product, anchors),
   ]
@@ -270,22 +290,37 @@ function buildEnPrompt(topic, product, anchors, fixedTitleEn) {
 // English and Bulgarian are generated independently and in parallel — neither
 // is a translation/adaptation of the other, both are full-quality articles
 // under the same store guardrails. Which one is canonical is decided at publish
-// time from store.config.js's primaryLocale.
+// time from store.config.js's primaryLocale. Only the store's languages
+// (config.store.locales) are generated; a single-language store's article has
+// no fields at all for the other language.
 export async function writeArticle(topic, { product = null, anchors = null, fixedTitleBg = null, fixedTitleEn = null } = {}) {
+  const { locales } = config.store;
   const [bgArticle, enArticle] = await Promise.all([
-    generateJson({ system: BG_SYSTEM_PROMPT, prompt: buildBgPrompt(topic, product, anchors, fixedTitleBg) }),
-    generateJson({ system: EN_SYSTEM_PROMPT, prompt: buildEnPrompt(topic, product, anchors, fixedTitleEn) }),
+    locales.includes('bg')
+      ? generateJson({ system: BG_SYSTEM_PROMPT, prompt: buildBgPrompt(topic, product, anchors, fixedTitleBg) })
+      : null,
+    locales.includes('en')
+      ? generateJson({ system: EN_SYSTEM_PROMPT, prompt: buildEnPrompt(topic, product, anchors, fixedTitleEn) })
+      : null,
   ]);
 
   return {
-    title_bg: fixedTitleBg ?? bgArticle.title_bg,
-    meta_bg: bgArticle.meta_bg,
-    body_bg_html: bgArticle.body_bg_html,
-    summary_bg: bgArticle.summary_bg,
-    title_en: fixedTitleEn ?? enArticle.title_en,
-    meta_en: enArticle.meta_en,
-    body_en_html: enArticle.body_en_html,
-    summary_en: enArticle.summary_en,
+    ...(bgArticle
+      ? {
+          title_bg: fixedTitleBg ?? bgArticle.title_bg,
+          meta_bg: bgArticle.meta_bg,
+          body_bg_html: bgArticle.body_bg_html,
+          summary_bg: bgArticle.summary_bg,
+        }
+      : {}),
+    ...(enArticle
+      ? {
+          title_en: fixedTitleEn ?? enArticle.title_en,
+          meta_en: enArticle.meta_en,
+          body_en_html: enArticle.body_en_html,
+          summary_en: enArticle.summary_en,
+        }
+      : {}),
   };
 }
 

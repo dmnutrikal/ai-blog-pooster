@@ -66,6 +66,9 @@ export function applyGuards(products) {
 // means "write the article with no product link at all" (no forced/irrelevant
 // link is better than a weak one).
 export async function matchProduct(topic) {
+  // No catalog (config.catalog.enabled false) -> never a product.
+  if (!config.catalog.enabled) return null;
+
   const queryEmbedding = await embedTopicQuery(topic);
   const candidates = await fetchCandidateProducts(queryEmbedding);
   const { passed } = applyGuards(candidates);
@@ -81,7 +84,7 @@ export async function matchProduct(topic) {
 // misconfigured handle should be fixed, not quietly ignored).
 export async function fetchPrimaryProduct() {
   const handle = config.products.primaryHandle;
-  if (!handle) return null;
+  if (!config.catalog.enabled || !handle) return null;
 
   const { data, error } = await supabase
     .from('products')

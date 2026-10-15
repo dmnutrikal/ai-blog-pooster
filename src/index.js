@@ -3,6 +3,7 @@ import { matchProduct, fetchPrimaryProduct } from './steps/matchProduct.js';
 import { writeArticle } from './steps/writeArticle.js';
 import { checkCompliance } from './steps/compliance.js';
 import { linkArticles } from './steps/linkArticles.js';
+import { insertCta } from './steps/insertCta.js';
 import { generateImage } from './steps/generateImage.js';
 import { publishArticle } from './steps/publish.js';
 import { generateTopics } from './steps/generateTopics.js';
@@ -33,16 +34,20 @@ function articleLinksToProduct(article, product) {
 
 async function processTopic(topic) {
   // Matched BEFORE writing so the model can weave the link into the prose
-  // itself, instead of a separate link snippet bolted on afterwards.
-  let product = await matchProduct({ keyword: topic.keyword, angle: topic.angle });
+  // itself, instead of a separate link snippet bolted on afterwards. Stores
+  // without a catalog (config.catalog.enabled false) never get a product.
+  let product = null;
+  if (config.catalog.enabled) {
+    product = await matchProduct({ keyword: topic.keyword, angle: topic.angle });
 
-  if (product) {
-    console.log(`  -> product match: "${product.title}" sim=${Number(product.similarity).toFixed(3)}`);
-  } else {
-    console.log('  -> product match: none cleared guards');
-    product = await fetchPrimaryProduct();
     if (product) {
-      console.log('  -> product match: fallback to primary product');
+      console.log(`  -> product match: "${product.title}" sim=${Number(product.similarity).toFixed(3)}`);
+    } else {
+      console.log('  -> product match: none cleared guards');
+      product = await fetchPrimaryProduct();
+      if (product) {
+        console.log('  -> product match: fallback to primary product');
+      }
     }
   }
 
@@ -65,9 +70,13 @@ async function processTopic(topic) {
       }
     : null;
 
-  const written = await writeArticle(
-    { keyword: topic.keyword, angle: topic.angle },
-    { product, anchors, fixedTitleBg: topic.fixed_title_bg, fixedTitleEn: topic.fixed_title_en }
+  // The store's fixed CTA (config.cta, if any) is added by code right after
+  // writing, so the compliance audit below sees exactly what gets published.
+  const written = insertCta(
+    await writeArticle(
+      { keyword: topic.keyword, angle: topic.angle },
+      { product, anchors, fixedTitleBg: topic.fixed_title_bg, fixedTitleEn: topic.fixed_title_en }
+    )
   );
 
   const compliance = await checkCompliance(written);

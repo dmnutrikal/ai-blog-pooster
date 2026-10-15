@@ -1,28 +1,27 @@
-# madebynaturelabs — not wired up yet
+# madebynaturelabs
 
-Placeholder. This store is **not** runnable: the engine only loads a store when
-`STORE=madebynaturelabs` is set, and it will fail at startup until the files below exist.
-Nothing here is referenced by the CollagenLab pipeline.
+English-only B2B blog for Made By Nature Labs, a private-label / contract cosmetics
+manufacturer. Uses the per-store flags in `src/config.js`:
 
-## What this folder needs
+| Flag (store.config.js) | Value | Effect |
+| --- | --- | --- |
+| `primaryLocale` / `secondaryLocale` | `'en'` / `null` | English article only, no translation registered |
+| `catalog` | `{ enabled: false }` | No product sync/matching/links; topics grounded in `content.js` `TOPIC_CONTEXT` |
+| `image` | `{ mode: 'scene-only' }` | Text-only editorial scenes, no `products/` folder |
+| `cta` | `{ anchorEn, leadInEn }` | Fixed B2B CTA inserted before the disclaimer (`src/steps/insertCta.js`) |
+| `publishStatus` | `'draft'` | Articles created Hidden until approved |
 
-| Path | What it is |
-| --- | --- |
-| `store.config.js` | Store id, the env-var NAMES holding this store's Shopify credentials / blog GID / public domain, and the fallback product handle. Copy `stores/collagenlab/store.config.js` as the template. **No secret values in this file — it is committed.** |
-| `regulatory.js` | This store's approved claim wording. Must export the same named constants the engine imports (`APPROVED_VITAMIN_C_CLAIM_BG`, `APPROVED_VITAMIN_C_CLAIM_EN`) — see `stores/collagenlab/regulatory.js`. |
-| `products/` | Product cutout PNGs for the featured image. `generateImage.js` globs `*.png` here; the filename becomes the flavor label (`Wild-Berries.png` -> "Wild Berries"). At least one file, or image generation falls back to a product-free lifestyle scene. |
-| `data/` | `calendar.json` — the editorial calendar `loadCalendar.js` upserts into `topics`. Same record shape as `stores/collagenlab/data/calendar.json`. |
-| `recipes/` | Optional. Recipe images, resolved as `config.store.paths.recipes`. Nothing reads this yet. |
+Compliance profile: EU Regulation (EC) 1223/2009 + (EU) 655/2013 — see `regulatory.js`.
 
-## Secrets
+## Secrets (local `.env` and GitHub repository secrets — never commit)
 
-Add this store's values to the environment (local `.env`, and GitHub repository
-secrets for CI) under the var names declared in its `store.config.js` — e.g.
-`BLOG_GID_MADEBYNATURELABS`. Never commit them.
+- `SHOPIFY_STORE_DOMAIN_MADEBYNATURELABS`, `SHOPIFY_CLIENT_ID_MADEBYNATURELABS`,
+  `SHOPIFY_CLIENT_SECRET_MADEBYNATURELABS` — required.
+- `B2B_CTA_URL_MADEBYNATURELABS` — required (startup fails without it).
+- `BLOG_GID_MADEBYNATURELABS` — optional; see the `BLOG_GID_TODO` in `store.config.js`.
 
 ## Turning it on
 
-1. Fill in the files above.
-2. Add the secrets.
-3. Add an Actions job (or matrix entry) with `STORE: madebynaturelabs` in
-   `.github/workflows/autoblog.yml`.
+1. Add the secrets above and set the blog GID.
+2. `STORE=madebynaturelabs npm run load-calendar` to load `data/calendar.json` into `topics`.
+3. Add an Actions job with `STORE: madebynaturelabs` in `.github/workflows/autoblog.yml`.
