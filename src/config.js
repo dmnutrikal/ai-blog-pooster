@@ -80,6 +80,15 @@ const locales = [primaryLocale, secondaryLocale].filter(Boolean);
 // (syncProducts.js, matchProduct.js, generateTopics.js). Default on; a store
 // with nothing to sell sets catalog: { enabled: false }.
 const catalogEnabled = storeConfig.catalog?.enabled ?? true;
+// Where the catalog comes from: 'shopify' (default — syncProducts.js reads the
+// Admin API) or 'csv' (importProductsCsv.js reads stores/<id>/data/products.csv).
+const CATALOG_SOURCES = new Set(['shopify', 'csv']);
+const catalogSource = storeConfig.catalog?.source ?? 'shopify';
+if (!CATALOG_SOURCES.has(catalogSource)) {
+  throw new Error(
+    `stores/${STORE}/store.config.js: catalog.source must be one of ${[...CATALOG_SOURCES].join(', ')} (got "${catalogSource}").`
+  );
+}
 
 // Featured-image strategy (generateImage.js): 'product-scene' renders a product
 // cutout from stores/<id>/products/ into a scene (text-only scene as fallback);
@@ -193,6 +202,7 @@ export const config = {
   },
   catalog: {
     enabled: catalogEnabled,
+    source: catalogSource,
   },
   // { url, anchorEn, leadInEn } or null — see insertCta.js.
   cta,
@@ -239,6 +249,15 @@ export const config = {
     // Below this cosine similarity, a product match is too weak to be a
     // genuine recommendation — skip it rather than force an irrelevant link.
     minSimilarity: Number(process.env.LINK_MIN_SIMILARITY ?? 0.35),
+    // Optional per-store "stands out" guard (store.config.js linking.minLift):
+    // the best match must beat the liftRank-th best by at least minLift. For
+    // catalogs whose descriptions share boilerplate, where any on-niche topic
+    // clears minSimilarity against every product. null = off.
+    minLift:
+      process.env.LINK_MIN_LIFT != null
+        ? Number(process.env.LINK_MIN_LIFT)
+        : (storeConfig.linking?.minLift ?? null),
+    liftRank: storeConfig.linking?.liftRank ?? 30,
     // Products whose title/product_type match one of these (case-insensitive,
     // substring) are accessories, not supplements, and are never linked as a
     // "related product" — e.g. a dosing scoop is semantically close to any

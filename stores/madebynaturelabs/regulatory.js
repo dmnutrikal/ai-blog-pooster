@@ -78,6 +78,10 @@ FORBIDDEN:
   banned EU-wide, so it is not a distinguishing feature).
 - No efficacy superlatives or guarantees: "the best", "most powerful", "guaranteed results",
   "miracle", and no before/after stories.
+- PRODUCT LINKS: when a product is provided, refer to it only by the name and anchor text given.
+  The link sentence and the closing CTA describe the product as a formula or base a brand can
+  private-label (format, key INCI ingredients, what it is used for in a range) — never repeat or
+  imply claims from a product page or name, and never attach an efficacy promise to the link.
 - Do NOT write the exact phrase "Made By Nature Labs is" anywhere in the body except at the start
   of the mandatory disclaimer; refer to the company as "we", "our lab" or "our team" instead.
 - The article MUST end with the mandatory disclaimer as its own final paragraph, verbatim:
@@ -135,6 +139,11 @@ NOT a violation — do not flag these:
 - B2B facts: private / white label, custom formulation, bulk / contract manufacturing, raw
   materials, MOQ, samples, timelines, manufacturing process.
 - The fixed call-to-action paragraph inviting the reader to request samples and pricing.
+- A product link or closing CTA that invites the reader to explore a formula or base they can
+  private-label — as long as the surrounding sentence makes no forbidden claim. (Judge the
+  claim, not the link: a disease or medicinal claim next to a product link is still a violation.)
+- Link URLs (href values). They are the addresses of the store's own product pages, fixed by the
+  catalog, not article copy — judge the visible text, including the link text, never the slug.
 - Organic / vegan / natural certification discussed as something a specific formula can be
   developed and substantiated for.
 `.trim();

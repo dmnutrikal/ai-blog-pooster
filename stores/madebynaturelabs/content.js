@@ -4,10 +4,11 @@
 // claims, auditor rules, image restrictions, disclaimer) is NOT here — that is
 // regulatory.js. Loaded for the active store by src/lib/storeContent.js.
 //
-// English-only, no catalog, image.mode 'scene-only' (see store.config.js), so
-// the loader needs only WRITER_STORE_EN, TOPIC_BRIEF and IMAGE.lifestyleSubject
-// (+ the optional TOPIC_CONTEXT). No WRITER_STORE_BG, LINK_EXAMPLES or IMAGE
-// product-cutout fields — nothing reads them for this store.
+// English-only, CSV catalog, image.mode 'scene-only' (see store.config.js), so
+// the loader needs WRITER_STORE_EN, LINK_EXAMPLES, TOPIC_BRIEF and
+// IMAGE.lifestyleSubject (+ the optional TOPIC_CONTEXT). No WRITER_STORE_BG or
+// IMAGE product-cutout fields — nothing reads them for this store.
+// PRODUCT_LINK is imported by store.config.js (its productLink).
 
 // "You are an expert English SEO content writer for <this>." (writeArticle.js)
 export const WRITER_STORE_EN = `Made By Nature Labs, an EU private-label and contract cosmetics
@@ -16,7 +17,77 @@ contract-manufacturing partner — write like an experienced formulation and pro
 advising them: practical, specific, commercially aware, no hype, no consumer-style beauty
 promises. Speak about the company as "we" / "our lab"`;
 
-// Grounds generateTopics.js in place of a product catalog.
+// Examples + wording in the English product-link instructions (writeArticle.js).
+export const LINK_EXAMPLES = {
+  anchorEn: '"explore our Hyaluronic Face Serum formula"',
+  contextEn:
+    'choose a ready-to-brand base formula for a new product, or what a private-label range ' +
+    'typically starts with',
+  regulationEn: 'EU Regulations 1223/2009 and 655/2013',
+  disclaimerNameEn: 'cosmetics disclaimer',
+  ctaExampleEn:
+    '<p>Ready to develop this as your own private-label product? <a href="URL">See the base you ' +
+    'can private-label</a>.</p>',
+};
+
+// Product names in the catalog sometimes carry claims the articles may not
+// make (acne, rosacea, "regenerating", "repair", "hair loss prevention"...).
+// The writer and anchors only ever see this cleaned-up name; the link still
+// goes to the real product page. Checked phrases first, then single words —
+// each with an adjacent "&" so "Comfort & Restore" becomes "Comfort".
+const CLAIM_PHRASES = [
+  'for cellulite reduction',
+  'hair loss prevention',
+  'sebum control',
+  'clear skin',
+  'clear & defence',
+  'clear & defense',
+];
+const CLAIM_WORDS = [
+  'acne', 'rosacea', 'regenerating', 'repair', 'restore', 'anti-age', 'anti-aging', 'anti-ageing',
+  'anti-cellulite', 'natural', 'expert', 'advanced', 'intensive', 'defence', 'defense',
+];
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function productDisplayName(name) {
+  let out = name
+    // size suffix: "- 250 ml.", "– 50 ml", "– 75 g."
+    .replace(/\s*[-–]\s*\d+(?:[.,]\d+)?\s*(?:ml|g|kg|l)\.?\s*$/i, '');
+  for (const term of [...CLAIM_PHRASES, ...CLAIM_WORDS]) {
+    const t = escapeRegExp(term);
+    out = out.replace(new RegExp(`(?:\\b${t}\\b\\s*&\\s*|\\s*&\\s*\\b${t}\\b|\\b${t}\\b)`, 'gi'), ' ');
+  }
+  out = out
+    .replace(/\s*[-–]\s*$/, '')
+    .replace(/^\s*&\s*|\s*&\s*$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return out || 'base formula';
+}
+
+// Anchor pools for the product link (index.js picks one inline + one CTA
+// anchor per article; {product} is the display name above). B2B wording —
+// formulas and bases a brand can private-label, never consumer "buy now".
+export const PRODUCT_LINK = {
+  inlineAnchorsEn: [
+    'explore our {product} formula',
+    'the {product} base',
+    'the {product} formula you can private-label',
+    'see the {product} base you can private-label',
+  ],
+  ctaAnchorsEn: [
+    'See the {product} base you can private-label',
+    'Explore our {product} formula',
+    'Request samples of the {product} formula',
+  ],
+  displayNameEn: productDisplayName,
+};
+
+// Grounds generateTopics.js in place of the product list (377 products would
+// swamp the prompt).
 export const TOPIC_CONTEXT = `
 Made By Nature Labs is an EU private-label and contract cosmetics manufacturer.
 

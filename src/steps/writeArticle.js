@@ -109,6 +109,12 @@ or after. The JSON object must have exactly these keys:
 
 const CLAIM_GUARDRAILS_EN = WRITER_GUARDRAILS_EN;
 
+// Optional LINK_EXAMPLES overrides for the English product-link instructions;
+// the defaults are the food-supplement stores' wording.
+const EN_REGULATION = LINK_EXAMPLES?.regulationEn ?? 'EC\n  1924/2006';
+const EN_DISCLAIMER_NAME = LINK_EXAMPLES?.disclaimerNameEn ?? 'food-supplements disclaimer';
+const EN_CTA_EXAMPLE = LINK_EXAMPLES?.ctaExampleEn ?? '<p>Ready to\n  start? <a href="URL">Order now</a>.</p>';
+
 const PRODUCT_LINK_INSTRUCTIONS_EN = !config.catalog.enabled
   ? NO_PRODUCT_LINKS_EN
   : `
@@ -124,20 +130,18 @@ PRODUCT LINK (optional):
 - This MUST read as a natural editorial mention — for example while explaining how people
   ${LINK_EXAMPLES.contextEn} — NOT as an advertisement or a
   "check out our product" line bolted on at the end.
-- Do NOT make any product claims in that sentence — the same regulatory guardrails (EC
-  1924/2006) apply to it as to the rest of the article.
+- Do NOT make any product claims in that sentence — the same regulatory guardrails (${EN_REGULATION}) apply to it as to the rest of the article.
 - Only ONE such natural, woven-in link in the entire article.
 - If NO PRODUCT is provided below, do not add any product link at all — the article must be
   completely free of product links.
 
 CLOSING CTA (only if a PRODUCT is provided):
 - In addition to the natural mention above, add exactly ONE separate call-to-action line,
-  positioned immediately BEFORE the mandatory food-supplements disclaimer paragraph at the very
+  positioned immediately BEFORE the mandatory ${EN_DISCLAIMER_NAME} paragraph at the very
   end of the article.
 - Format: a short <p> sentence containing an HTML link to the PRODUCT: <a href="URL">LINK
   TEXT</a>. For LINK TEXT, use EXACTLY the text given below as "CTA ANCHOR TEXT" (if provided) —
-  it already reads as a call-to-action, so a brief lead-in around it is enough, e.g.: <p>Ready to
-  start? <a href="URL">Order now</a>.</p> If no such text is provided, use natural anchor text
+  it already reads as a call-to-action, so a brief lead-in around it is enough, e.g.: ${EN_CTA_EXAMPLE} If no such text is provided, use natural anchor text
   that includes the product name instead — for example: <p>Start your daily ritual with
   <a href="URL">Exact Product Name</a>.</p>
 - This line is purely a call-to-action — it must NOT contain any health or efficacy claim about

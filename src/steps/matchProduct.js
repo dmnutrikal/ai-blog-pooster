@@ -12,11 +12,11 @@ export async function embedTopicQuery(topic) {
   return embed([topic.keyword, topic.angle].filter(Boolean).join('\n'));
 }
 
-export async function fetchCandidateProducts(queryEmbedding) {
+export async function fetchCandidateProducts(queryEmbedding, matchCount = RPC_MATCH_COUNT) {
   const { data, error } = await supabase.rpc('match_products', {
     query_embedding: queryEmbedding,
     match_store: STORE,
-    match_count: RPC_MATCH_COUNT,
+    match_count: matchCount,
   });
   if (error) {
     throw new Error(`match_products RPC failed: ${error.message}`);
@@ -69,9 +69,22 @@ export async function matchProduct(topic) {
   // No catalog (config.catalog.enabled false) -> never a product.
   if (!config.catalog.enabled) return null;
 
+  const { minLift, liftRank } = config.linking;
   const queryEmbedding = await embedTopicQuery(topic);
-  const candidates = await fetchCandidateProducts(queryEmbedding);
+  const pool = await fetchCandidateProducts(queryEmbedding, minLift != null ? liftRank : RPC_MATCH_COUNT);
+  const candidates = pool.slice(0, RPC_MATCH_COUNT);
   const { passed } = applyGuards(candidates);
+
+  // GUARD 3 (optional, config.linking.minLift): the best match must stand out
+  // from the rest of the catalog, not just clear minSimilarity.
+  const lift = minLift != null && pool.length > 0 ? pool[0].similarity - pool.at(-1).similarity : null;
+  if (lift != null) {
+    console.log(
+      `  -> best candidate "${pool[0].title}" sim=${Number(pool[0].similarity).toFixed(3)} ` +
+        `lift=${lift.toFixed(3)} (min sim ${config.linking.minSimilarity}, min lift ${minLift})`
+    );
+    if (lift < minLift) return null;
+  }
   return passed[0] ?? null;
 }
 

@@ -145,6 +145,12 @@ export async function syncProducts() {
     console.log(`Store "${STORE}" has no product catalog (catalog.enabled false) — nothing to sync.`);
     return 0;
   }
+  // CSV-sourced catalog: the Shopify sync (and its reconciliation delete)
+  // must never touch those rows — importProductsCsv.js owns them.
+  if (config.catalog.source === 'csv') {
+    console.log(`Store "${STORE}" imports its catalog from CSV — run \`npm run import-products-csv\` instead.`);
+    return 0;
+  }
 
   const products = await fetchAllProducts();
   console.log(`Fetched ${products.length} product(s) from Shopify.`);

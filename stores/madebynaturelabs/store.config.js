@@ -7,11 +7,10 @@
 // NO SECRETS IN THIS FILE. It is committed. Secrets live in the environment;
 // this file only declares the NAMES of the env vars that carry them.
 
-// TODO(blogGid): no MADEBYNATURELABS Shopify credentials were available when
-// this store was wired up, so the blog GID is unknown. Once
-// SHOPIFY_*_MADEBYNATURELABS are set, fetch it (Admin API `blogs { id title }`)
-// and put it here or in BLOG_GID_MADEBYNATURELABS. Until then publish.js falls
-// back to the shop's first blog and logs its GID.
+import { PRODUCT_LINK } from './content.js';
+
+// The blog GID comes from BLOG_GID_MADEBYNATURELABS (local .env / repository
+// secret), so none is hardcoded here.
 const BLOG_GID_TODO = null;
 
 export default {
@@ -29,16 +28,30 @@ export default {
   // 'published' = they go live immediately.
   publishStatus: 'draft',
 
-  // No Shopify product catalog to sync, match or link — topics are grounded
-  // in content.js's TOPIC_CONTEXT instead.
-  catalog: { enabled: false },
+  // Product catalog imported from data/products.csv (npm run
+  // import-products-csv), not synced from Shopify. Each article links the most
+  // relevant product (match_products, LINK_MIN_SIMILARITY); topics are still
+  // grounded in content.js's TOPIC_CONTEXT.
+  catalog: { enabled: true, source: 'csv' },
+
+  // B2B anchor wording + claim-free display names — see content.js.
+  productLink: PRODUCT_LINK,
+
+  // Nearly every product description ends with the same private-label / MOQ
+  // boilerplate, so a generic B2B topic ("cosmetics minimum order quantity")
+  // clears LINK_MIN_SIMILARITY against random products. A real match also has
+  // to beat the 30th-best product by 0.09 (measured on 45 calendar topics:
+  // genuine matches >= 0.093, generic topics <= 0.089). Otherwise the article
+  // falls back to the fixed CTA.
+  linking: { minLift: 0.09, liftRank: 30 },
 
   // No product cutouts — featured images are text-only editorial scenes.
   image: { mode: 'scene-only' },
 
   // Fixed B2B call-to-action inserted by code before the disclaimer
-  // (src/steps/insertCta.js). The URL comes from B2B_CTA_URL_MADEBYNATURELABS,
-  // which is required at startup.
+  // (src/steps/insertCta.js) — only as the FALLBACK, when an article carries
+  // no product link. The URL comes from B2B_CTA_URL_MADEBYNATURELABS, which is
+  // required at startup.
   cta: {
     anchorEn: 'Request samples & pricing',
     leadInEn: 'Ready to develop this as your own private-label product?',

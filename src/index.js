@@ -61,23 +61,33 @@ async function processTopic(topic) {
   if (product && (pools.nameBg || pools.nameEn)) {
     product = { ...product, title_bg: pools.nameBg ?? product.title_bg, title: pools.nameEn ?? product.title };
   }
+  // Or a store-wide rule (productLink.displayNameEn(title)) for catalogs too
+  // large to name product by product.
+  if (product && typeof pools.displayNameEn === 'function') {
+    product = { ...product, title: pools.displayNameEn(product.title) };
+  }
+  // Anchors may contain a {product} placeholder for the (display) name.
+  const fill = (anchor) => anchor?.replaceAll('{product}', product.title);
   const anchors = product
     ? {
         inlineAnchorBg: pickRandom(pools.inlineAnchorsBg),
         ctaAnchorBg: pickRandom(pools.ctaAnchorsBg),
-        inlineAnchorEn: pickRandom(pools.inlineAnchorsEn),
-        ctaAnchorEn: pickRandom(pools.ctaAnchorsEn),
+        inlineAnchorEn: fill(pickRandom(pools.inlineAnchorsEn)),
+        ctaAnchorEn: fill(pickRandom(pools.ctaAnchorsEn)),
       }
     : null;
 
-  // The store's fixed CTA (config.cta, if any) is added by code right after
-  // writing, so the compliance audit below sees exactly what gets published.
-  const written = insertCta(
-    await writeArticle(
-      { keyword: topic.keyword, angle: topic.angle },
-      { product, anchors, fixedTitleBg: topic.fixed_title_bg, fixedTitleEn: topic.fixed_title_en }
-    )
+  const draft = await writeArticle(
+    { keyword: topic.keyword, angle: topic.angle },
+    { product, anchors, fixedTitleBg: topic.fixed_title_bg, fixedTitleEn: topic.fixed_title_en }
   );
+  // The store's fixed CTA (config.cta, if any) is the fallback for articles
+  // that carry no product link. Added by code right after writing, so the
+  // compliance audit below sees exactly what gets published.
+  const written = articleLinksToProduct(draft, product) ? draft : insertCta(draft);
+  if (config.cta) {
+    console.log(`  -> closing link: ${written === draft ? 'product CTA' : `fallback CTA -> ${config.cta.url}`}`);
+  }
 
   const compliance = await checkCompliance(written);
   if (config.pipeline.complianceMode === 'block' && compliance.passed !== true) {

@@ -107,10 +107,11 @@ async function insertTopics(store, topics) {
   return (data ?? []).length;
 }
 
-// Stores with a catalog ground topics in their products; catalog-less stores
-// (config.catalog.enabled false) in their content.js TOPIC_CONTEXT instead.
+// Stores with a catalog ground topics in their products; stores with a
+// content.js TOPIC_CONTEXT (catalog-less ones, or a large CSV catalog that
+// would swamp the prompt) in that instead.
 function buildGroundingBlock(products) {
-  if (config.catalog.enabled) {
+  if (config.catalog.enabled && !TOPIC_CONTEXT) {
     return `PRODUCTS (this store's catalog — ground topics in these where natural):
 ${formatProductsBlock(products)}`;
   }
@@ -148,7 +149,7 @@ export async function generateTopics(store, { count = 15, dryRun = true } = {}) 
   const [existingKeywords, recentArticles, products] = await Promise.all([
     fetchExistingKeywords(store),
     fetchRecentPublishedTitles(store),
-    config.catalog.enabled ? fetchProducts(store) : [],
+    config.catalog.enabled && !TOPIC_CONTEXT ? fetchProducts(store) : [],
   ]);
 
   const result = await generateJson({
