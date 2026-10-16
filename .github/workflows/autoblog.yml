@@ -132,8 +132,8 @@ jobs:
         run: npm run run
 
   # Made By Nature Labs — same schedule and steps, English-only B2B store.
-  # Articles are created Hidden (publishStatus 'draft' in
-  # stores/madebynaturelabs/store.config.js) until approved.
+  # Articles go live immediately (publishStatus 'published' in
+  # stores/madebynaturelabs/store.config.js).
   #
   # To DISABLE without editing this file: set the repository variable
   # MADEBYNATURELABS_AUTOBLOG=off. Any other value, or unset, leaves it enabled.

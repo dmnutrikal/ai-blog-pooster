@@ -26,7 +26,7 @@ export default {
 
   // 'draft' = articles are created Hidden in Shopify for manual review;
   // 'published' = they go live immediately.
-  publishStatus: 'draft',
+  publishStatus: 'published',
 
   // Product catalog imported from data/products.csv (npm run
   // import-products-csv), not synced from Shopify. Each article links the most

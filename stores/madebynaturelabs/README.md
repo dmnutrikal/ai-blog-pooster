@@ -11,7 +11,7 @@ manufacturer. Uses the per-store flags in `src/config.js`:
 | `productLink` | `PRODUCT_LINK` (content.js) | B2B anchor pools with a `{product}` placeholder + claim-free display names |
 | `image` | `{ mode: 'scene-only' }` | Text-only editorial scenes, no `products/` folder |
 | `cta` | `{ anchorEn, leadInEn }` | Fixed B2B CTA to `B2B_CTA_URL_MADEBYNATURELABS` — **fallback only**, when an article has no product link (`src/steps/insertCta.js`) |
-| `publishStatus` | `'draft'` | Articles created Hidden until approved |
+| `publishStatus` | `'published'` | Articles go live (visible) immediately |
 
 Compliance profile: EU Regulation (EC) 1223/2009 + (EU) 655/2013 — see `regulatory.js`.
 
@@ -42,5 +42,5 @@ Compliance profile: EU Regulation (EC) 1223/2009 + (EU) 655/2013 — see `regula
 2. `STORE=madebynaturelabs npm run load-calendar` to load `data/calendar.json` into `topics`.
 3. `STORE=madebynaturelabs npm run import-products-csv` to load the catalog.
 4. The `run-pipeline-madebynaturelabs` job in `.github/workflows/autoblog.yml` runs daily
-   (1 Hidden article). It skips itself until the required secrets exist; set the repository
+   (1 visible article). It skips itself until the required secrets exist; set the repository
    variable `MADEBYNATURELABS_AUTOBLOG=off` to pause it.
