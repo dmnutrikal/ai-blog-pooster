@@ -24,4 +24,6 @@ Compliance profile: EU Regulation (EC) 1223/2009 + (EU) 655/2013 — see `regula
 
 1. Add the secrets above and set the blog GID.
 2. `STORE=madebynaturelabs npm run load-calendar` to load `data/calendar.json` into `topics`.
-3. Add an Actions job with `STORE: madebynaturelabs` in `.github/workflows/autoblog.yml`.
+3. The `run-pipeline-madebynaturelabs` job in `.github/workflows/autoblog.yml` runs daily
+   (1 Hidden article). It skips itself until the required secrets exist; set the repository
+   variable `MADEBYNATURELABS_AUTOBLOG=off` to pause it.
