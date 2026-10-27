@@ -82,8 +82,11 @@ jobs:
   # Also a no-op until its Shopify secrets exist: the first step checks for
   # them and every later step is skipped (job stays green) if any is missing.
   # Blog GID and public domain are hardcoded in stores/gutexpert/store.config.js.
+  #
+  # PAUSED (2026-10-27, at the user's request): `false &&` disables the job.
+  # To resume, remove `false && ` from the condition below.
   run-pipeline-gutexpert:
-    if: vars.GUTEXPERT_AUTOBLOG != 'off'
+    if: false && vars.GUTEXPERT_AUTOBLOG != 'off'
     runs-on: ubuntu-latest
 
     env:
