@@ -10,9 +10,9 @@ const EMBED_BATCH_SIZE = 100;
 // For stores whose catalog comes from a CSV export (store.config.js
 // catalog.source 'csv') instead of the Shopify Admin API — see syncProducts.js
 // for the Shopify path. Reads stores/<STORE>/data/products.csv (columns Name,
-// Link, Description; Link is the product-page URL) and upserts one products
-// row per line, keyed on (store, handle), so re-runs update rather than
-// duplicate.
+// Link, Description; Link is the product-page URL — or Product, URL with no
+// Description) and upserts one products row per line, keyed on (store,
+// handle), so re-runs update rather than duplicate.
 const CSV_PATH = join(config.store.paths.root, 'data', 'products.csv');
 
 // RFC 4180: quoted fields may contain commas, newlines and "" escapes.
@@ -64,10 +64,16 @@ export function handleFromLink(link) {
 
 export function readCatalogCsv(path = CSV_PATH) {
   const [header, ...lines] = parseCsv(readFileSync(path, 'utf8'));
-  const col = (name) => header.findIndex((h) => h.trim().toLowerCase() === name);
-  const idx = { name: col('name'), link: col('link'), description: col('description') };
-  if (Object.values(idx).some((i) => i === -1)) {
-    throw new Error(`${path}: expected columns Name, Link, Description (got ${header.join(', ')}).`);
+  const col = (...names) => header.findIndex((h) => names.includes(h.trim().toLowerCase()));
+  const idx = { name: col('name', 'product'), link: col('link', 'url'), description: col('description') };
+  // Description is optional: without it the embedding is the plain product
+  // name only (a catalog whose URL slugs carry claim words must not feed them
+  // into matching).
+  const hasDescription = idx.description !== -1;
+  if (idx.name === -1 || idx.link === -1) {
+    throw new Error(
+      `${path}: expected columns Name, Link, Description (or Product, URL) (got ${header.join(', ')}).`
+    );
   }
 
   const problems = [];
@@ -77,7 +83,7 @@ export function readCatalogCsv(path = CSV_PATH) {
     const line = n + 2;
     const name = (cells[idx.name] ?? '').trim();
     const url = (cells[idx.link] ?? '').trim();
-    const description = (cells[idx.description] ?? '').trim();
+    const description = hasDescription ? (cells[idx.description] ?? '').trim() : null;
     const handle = handleFromLink(url);
     if (!name) problems.push(`line ${line}: empty Name`);
     if (!handle) problems.push(`line ${line}: Link has no /products/ slug (${url || 'empty'})`);
@@ -114,7 +120,7 @@ export async function importProductsCsv({ path = CSV_PATH } = {}) {
   const toInsert = [];
   for (let i = 0; i < products.length; i += EMBED_BATCH_SIZE) {
     const batch = products.slice(i, i + EMBED_BATCH_SIZE);
-    const embeddings = await embed(batch.map((p) => `${p.name}\n${p.description}`));
+    const embeddings = await embed(batch.map((p) => (p.description === null ? p.name : `${p.name}\n${p.description}`)));
     batch.forEach((p, j) => {
       const row = {
         store: STORE,

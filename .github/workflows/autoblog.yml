@@ -192,3 +192,65 @@ jobs:
           B2B_CTA_URL_MADEBYNATURELABS: ${{ secrets.B2B_CTA_URL_MADEBYNATURELABS }}
           BLOG_GID_MADEBYNATURELABS: ${{ secrets.BLOG_GID_MADEBYNATURELABS }}
         run: npm run run
+
+  # Nutrikal — same schedule and steps, English-only B2B food supplements.
+  # Articles are created Hidden for review (publishStatus 'draft' in
+  # stores/nutrikal/store.config.js).
+  #
+  # To DISABLE without editing this file: set the repository variable
+  # NUTRIKAL_AUTOBLOG=off. Any other value, or unset, leaves it enabled.
+  #
+  # A no-op until its required secrets exist (Shopify domain/client id/secret
+  # and B2B_CTA_URL_NUTRIKAL, which startup requires). The blog GID is read
+  # from the BLOG_GID_NUTRIKAL secret.
+  run-pipeline-nutrikal:
+    if: vars.NUTRIKAL_AUTOBLOG != 'off'
+    runs-on: ubuntu-latest
+
+    env:
+      STORE: nutrikal
+      COMPLIANCE_MODE: block
+      ARTICLES_PER_RUN: 1
+
+    steps:
+      - name: Check Nutrikal secrets
+        id: secrets
+        env:
+          SHOPIFY_STORE_DOMAIN_NUTRIKAL: ${{ secrets.SHOPIFY_STORE_DOMAIN_NUTRIKAL }}
+          SHOPIFY_CLIENT_ID_NUTRIKAL: ${{ secrets.SHOPIFY_CLIENT_ID_NUTRIKAL }}
+          SHOPIFY_CLIENT_SECRET_NUTRIKAL: ${{ secrets.SHOPIFY_CLIENT_SECRET_NUTRIKAL }}
+          B2B_CTA_URL_NUTRIKAL: ${{ secrets.B2B_CTA_URL_NUTRIKAL }}
+        run: |
+          if [ -n "$SHOPIFY_STORE_DOMAIN_NUTRIKAL" ] && [ -n "$SHOPIFY_CLIENT_ID_NUTRIKAL" ] && [ -n "$SHOPIFY_CLIENT_SECRET_NUTRIKAL" ] && [ -n "$B2B_CTA_URL_NUTRIKAL" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Nutrikal secrets not set — skipping the Nutrikal pipeline."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Run pipeline
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SHOPIFY_STORE_DOMAIN_NUTRIKAL: ${{ secrets.SHOPIFY_STORE_DOMAIN_NUTRIKAL }}
+          SHOPIFY_CLIENT_ID_NUTRIKAL: ${{ secrets.SHOPIFY_CLIENT_ID_NUTRIKAL }}
+          SHOPIFY_CLIENT_SECRET_NUTRIKAL: ${{ secrets.SHOPIFY_CLIENT_SECRET_NUTRIKAL }}
+          B2B_CTA_URL_NUTRIKAL: ${{ secrets.B2B_CTA_URL_NUTRIKAL }}
+          BLOG_GID_NUTRIKAL: ${{ secrets.BLOG_GID_NUTRIKAL }}
+        run: npm run run
