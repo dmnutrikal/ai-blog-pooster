@@ -194,8 +194,9 @@ jobs:
         run: npm run run
 
   # Nutrikal — same schedule and steps, English-only B2B food supplements.
-  # Articles are created Hidden for review (publishStatus 'draft' in
-  # stores/nutrikal/store.config.js).
+  # Articles publish LIVE (publishStatus 'published' in
+  # stores/nutrikal/store.config.js), only after passing the fail-closed
+  # food-supplement compliance audit (COMPLIANCE_MODE block).
   #
   # To DISABLE without editing this file: set the repository variable
   # NUTRIKAL_AUTOBLOG=off. Any other value, or unset, leaves it enabled.

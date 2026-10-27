@@ -26,7 +26,7 @@ export default {
 
   // 'draft' = articles are created Hidden in Shopify for manual review;
   // 'published' = they go live immediately.
-  publishStatus: 'draft',
+  publishStatus: 'published',
 
   // Product catalog imported from data/products.csv (npm run
   // import-products-csv), not synced from Shopify. Each article links the most
@@ -34,6 +34,14 @@ export default {
   // plain product name only. Topics are still grounded in content.js's
   // TOPIC_CONTEXT.
   catalog: { enabled: true, source: 'csv' },
+
+  // "Stands out" guard (src/config.js linking.minLift). Product names are
+  // embedded without descriptions, so generic business topics (business plan,
+  // first order...) clear minSimilarity against the whole catalog — mostly
+  // "Pre-Workout Formula" at lift <= 0.154. 0.16 keeps genuine ingredient
+  // matches (magnesium, ashwagandha, probiotics, creatine, collagen...) and
+  // sends the rest to the /collections/all fallback.
+  linking: { minLift: 0.16, liftRank: 30 },
 
   // B2B anchor wording + claim-free display names — see content.js.
   productLink: PRODUCT_LINK,

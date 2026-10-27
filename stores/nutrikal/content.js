@@ -159,13 +159,13 @@ SERVICES:
   softgels, sachets/stick packs.
 
 EDITORIAL PILLARS (spread topics across all seven):
-1. Brand launches
-2. Private label & suppliers
-3. Product categories
-4. Ingredients & raw materials
-5. Trends & innovation
-6. Formats & custom development
-7. Launch execution & audiences
+1. Starting and launching your own supplement brand
+2. Private label, white label and finding a manufacturer
+3. Product categories and own-brand opportunities
+4. Ingredients and raw materials
+5. Supplement trends and product innovation
+6. Formats and custom product development
+7. Launch execution, costs and business audiences
 `.trim();
 
 // Topic generator brief (src/steps/generateTopics.js).
@@ -174,7 +174,7 @@ You are an English B2B SEO content strategist for Nutrikal, an EU private-label 
 food supplement manufacturer (see STORE CONTEXT below).
 
 TASK: Propose NEW English blog topics as {keyword, angle} pairs (e.g. keyword="private label
-supplements minimum order quantity", angle="Private label & suppliers").
+supplements minimum order quantity", angle="Private label, white label and finding a manufacturer").
 
 REQUIREMENTS:
 - "keyword" is a short English search phrase a brand owner would type (lowercase, no
