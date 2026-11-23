@@ -1,0 +1,64 @@
+name: Weekly Translation Sync
+
+# Syncs translations for every store that has "Автоматичен седмичен превод" switched on
+# in the panel (stores.translate_weekly_enabled, off by default). A store also needs
+# "Разреши запис" for the run to write; otherwise it only leaves proposals to review.
+
+on:
+  # Manual trigger for testing from the Actions tab.
+  workflow_dispatch: {}
+
+  schedule:
+    # Monday 05:00 UTC = 07:00 Sofia, before the working day starts.
+    - cron: "0 5 * * 1"
+
+concurrency:
+  group: translate-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check secrets
+        id: secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          CREDENTIALS_KEY: ${{ secrets.CREDENTIALS_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_SECRET_KEY" ] && [ -n "$CREDENTIALS_KEY" ] && [ -n "$OPENAI_API_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Translation sync secrets not set (SUPABASE_URL, SUPABASE_SECRET_KEY, CREDENTIALS_KEY, OPENAI_API_KEY) — skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install panel dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: panel
+        run: npm ci
+
+      - name: Run scheduled sync
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: panel
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          CREDENTIALS_KEY: ${{ secrets.CREDENTIALS_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TRANSLATE_ENGINE: openai
+          NEVER_TRANSLATE: CollagenLab,Nutrikal
+        run: npm run sync:scheduled

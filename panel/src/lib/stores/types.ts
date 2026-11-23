@@ -39,6 +39,9 @@ export interface StoreRecord {
   blogGid: string | null;
   autoblogEnabled: boolean;
   writesEnabled: boolean;
+  // Weekly scheduled translation sync (.github/workflows/translate.yml). Off by default;
+  // the scheduled run writes only when writesEnabled is also on, otherwise it leaves proposals.
+  translateWeeklyEnabled: boolean;
   connection: ConnectionSnapshot | null;
   createdAt: string;
   updatedAt: string;

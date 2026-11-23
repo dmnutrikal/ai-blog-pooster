@@ -184,3 +184,11 @@ export async function startTranslationSync(storeId: string, formData: FormData):
 
   revalidatePath(`/stores/${storeId}/translations`);
 }
+
+export async function setTranslateWeeklyEnabled(storeId: string, formData: FormData): Promise<void> {
+  const translateWeeklyEnabled = formData.get("translateWeeklyEnabled") === "on";
+  await storeRepository().update(storeId, { translateWeeklyEnabled });
+  await audit(storeId, "store.translate_weekly_enabled", { translateWeeklyEnabled });
+  revalidatePath(`/stores/${storeId}/translations`);
+  revalidatePath(`/stores/${storeId}`);
+}

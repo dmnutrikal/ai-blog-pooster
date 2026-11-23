@@ -16,7 +16,8 @@
     "phase0:count": "tsx --env-file-if-exists=.env scripts/phase0-count.ts",
     "gen-key": "node -e \"console.log(require('node:crypto').randomBytes(32).toString('base64'))\"",
     "import-stores": "tsx --env-file-if-exists=.env scripts/import-pipeline-stores.ts",
-    "sync": "tsx --env-file-if-exists=.env scripts/sync-products.ts"
+    "sync": "tsx --env-file-if-exists=.env scripts/sync-products.ts",
+    "sync:scheduled": "tsx --env-file-if-exists=.env scripts/sync-scheduled.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.11.0",

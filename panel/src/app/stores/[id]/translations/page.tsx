@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { startTranslationSync } from "@/app/actions";
+import { setTranslateWeeklyEnabled, startTranslationSync } from "@/app/actions";
 import { formatDate } from "@/app/ConnectionResult";
 import { coverage, jobFailures, listJobs, type TranslationJob } from "@/lib/translate/db";
 import { storeRepository } from "@/lib/stores/repository";
@@ -75,6 +75,25 @@ export default async function TranslationsPage({ params }: { params: Promise<{ i
             </div>
           </form>
         )}
+      </div>
+
+      <div className="card">
+        <h2>Автоматичен седмичен превод</h2>
+        <form action={setTranslateWeeklyEnabled.bind(null, store.id)}>
+          <div className="toggle field">
+            <input id="translateWeeklyEnabled" name="translateWeeklyEnabled" type="checkbox" defaultChecked={store.translateWeeklyEnabled} />
+            <label htmlFor="translateWeeklyEnabled">
+              Синхронизирай преводите веднъж седмично
+              <span className="small muted" style={{ display: "block", fontWeight: 400 }}>
+                Всеки понеделник сутрин преглежда магазина и превежда промененото и новото съдържание. При включен „Разреши запис“ записва направо;
+                иначе оставя предложения за преглед тук. Изключено по подразбиране.
+              </span>
+            </label>
+          </div>
+          <button className="btn" type="submit">
+            Запази
+          </button>
+        </form>
       </div>
 
       <div className="card">

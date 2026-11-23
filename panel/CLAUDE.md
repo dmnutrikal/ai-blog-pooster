@@ -32,6 +32,9 @@ where published translations live.
   (dry run without `--write`; proposals land as `pending_review`). `--adopt` accepts the store's current
   state as the baseline: later runs only touch source text changed after that point (per source digest).
   Also on the store's Преводи page in the panel. CollagenLab's baseline was adopted on 2026-11-23.
+- `npm run sync:scheduled` — syncs every store with "Автоматичен седмичен превод" on (off by default;
+  toggled on the Преводи page, column `stores.translate_weekly_enabled`). Runs weekly from
+  `../.github/workflows/translate.yml`; writes only where "Разреши запис" is also on, else leaves proposals.
 - `npm run phase0:e2e -- [--store domain|name] --locale de [--product gid] [--write] [--record]`
 - `npm run phase0:count -- [--store domain|name] [--type ARTICLE]`
 

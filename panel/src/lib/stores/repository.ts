@@ -29,7 +29,7 @@ export class DuplicateStoreError extends Error {
 }
 
 const COLUMNS =
-  "id, slug, name, shop_domain, client_id, client_secret_encrypted, public_domain, blog_gid, autoblog_enabled, writes_enabled, connection, created_at, updated_at";
+  "id, slug, name, shop_domain, client_id, client_secret_encrypted, public_domain, blog_gid, autoblog_enabled, writes_enabled, translate_weekly_enabled, connection, created_at, updated_at";
 
 export interface StoreRow {
   id: string;
@@ -42,6 +42,8 @@ export interface StoreRow {
   blog_gid: string | null;
   autoblog_enabled: boolean;
   writes_enabled: boolean;
+  // Optional until migration 20261123150000 runs everywhere; fromRow defaults it to false.
+  translate_weekly_enabled?: boolean;
   connection: ConnectionSnapshot | null;
   created_at: string;
   updated_at: string;
@@ -59,6 +61,7 @@ export function fromRow(row: StoreRow): StoreRecord {
     blogGid: row.blog_gid,
     autoblogEnabled: row.autoblog_enabled,
     writesEnabled: row.writes_enabled,
+    translateWeeklyEnabled: row.translate_weekly_enabled ?? false,
     connection: row.connection,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -75,6 +78,7 @@ const FIELD_TO_COLUMN: Record<keyof StorePatch, keyof StoreRow> = {
   blogGid: "blog_gid",
   autoblogEnabled: "autoblog_enabled",
   writesEnabled: "writes_enabled",
+  translateWeeklyEnabled: "translate_weekly_enabled",
   connection: "connection",
 };
 
