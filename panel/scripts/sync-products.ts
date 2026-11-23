@@ -62,6 +62,7 @@ async function main() {
   console.log(`  failed validation:  ${summary.failed}`);
   console.log(`  locked, untouched:  ${summary.skippedLocked}`);
   if (summary.adopted) console.log(`  adopted as-is:      ${summary.adopted}`);
+  if (summary.unsupported) console.log(`  unsupported types:  ${summary.unsupported} (generic JSON/lists — not translated)`);
   console.log(`  tokens: ${summary.usage.inputTokens} in / ${summary.usage.outputTokens} out · $${summary.usage.costUsd.toFixed(4)}`);
   if (!args.write) console.log("\nNothing was written. Re-run with --write after reviewing.");
 }

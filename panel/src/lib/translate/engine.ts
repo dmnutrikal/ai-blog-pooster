@@ -40,6 +40,7 @@ export interface TranslateResult {
 
 export interface TranslationEngine {
   readonly name: string;
+  readonly model?: string;
   translate(req: TranslateRequest): Promise<TranslateResult>;
 }
 

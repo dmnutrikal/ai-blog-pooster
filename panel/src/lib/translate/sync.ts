@@ -106,6 +106,7 @@ export interface SyncSummary {
   failed: number; // fields rejected by validation or the engine
   skippedLocked: number;
   adopted: number; // fields accepted as-is as the baseline (adopt mode)
+  unsupported: number; // non-empty fields of content types we cannot translate safely yet
   usage: { inputTokens: number; outputTokens: number; costUsd: number };
 }
 
@@ -160,6 +161,7 @@ export async function syncStore(
     failed: 0,
     skippedLocked: 0,
     adopted: 0,
+    unsupported: 0,
     usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
   };
 
@@ -193,6 +195,7 @@ export async function syncStore(
         const dbResourceId = resourceIds.get(node.resourceId)!;
         for (const content of node.translatableContent) {
           const kind = contentKind(content.type);
+          if (!kind && content.value) summary.unsupported++;
           if (!kind || !content.value || !content.digest) continue; // unsupported or empty source
           summary.scanned++;
           entries.push({ node, content: { ...content, value: content.value }, kind, dbResourceId });

@@ -61,9 +61,9 @@ describe("contentKind", () => {
     expect(contentKind("SINGLE_LINE_TEXT_FIELD")).toBe("text");
     expect(contentKind("HTML")).toBe("html");
     expect(contentKind("URL")).toBe("url");
-    expect(contentKind("RICH_TEXT_FIELD")).toBeNull();
+    expect(contentKind("RICH_TEXT_FIELD")).toBe("rich_text");
     expect(contentKind("JSON")).toBeNull();
-    expect(contentKind("LIST_SINGLE_LINE_TEXT_FIELD")).toBeNull();
+    expect(contentKind("LIST_SINGLE_LINE_TEXT_FIELD")).toBe("list_text");
   });
 });
 
@@ -100,5 +100,65 @@ describe("translateBatch", () => {
     const engine = new FakeEngine(() => "https://evil.example");
     const out = await translateBatch(engine, [{ id: "u", text: "https://collagenlab.eu", kind: "url" }], base);
     expect(out.items[0]).toEqual({ id: "u", ok: true, value: "https://collagenlab.eu" });
+  });
+});
+
+describe("structured content (rich text, text lists)", () => {
+  const base = { sourceLocale: "en", targetLocale: "de", neverTranslate: ["CollagenLab"] };
+
+  it("translates rich text leaves and keeps the structure byte-identical otherwise", async () => {
+    const rich = JSON.stringify({
+      type: "root",
+      children: [
+        { type: "paragraph", children: [{ type: "text", value: "Buy CollagenLab now", bold: true }] },
+        { type: "link", url: "https://collagenlab.eu", children: [{ type: "text", value: "Shop" }] },
+      ],
+    });
+    const engine = new FakeEngine((t) => t.replace("Buy", "Kaufen").replace("now", "jetzt").replace("Shop", "Laden"));
+    const out = await translateBatch(engine, [{ id: "m1", text: rich, kind: "rich_text" }], base);
+    const item = out.items[0]!;
+    expect(item.ok).toBe(true);
+    const rebuilt = JSON.parse((item as { value: string }).value);
+    expect(rebuilt.children[0].children[0].value).toBe("Kaufen CollagenLab jetzt");
+    expect(rebuilt.children[0].children[0].bold).toBe(true);
+    expect(rebuilt.children[1].url).toBe("https://collagenlab.eu");
+    expect(rebuilt.children[1].children[0].value).toBe("Laden");
+    // The engine saw plain text parts, not JSON.
+    expect(engine.lastRequest!.items.every((i) => i.kind === "text")).toBe(true);
+    expect(engine.lastRequest!.items[0]!.text).toContain("Kaufen".length ? "Buy" : "");
+  });
+
+  it("translates a list of strings and returns a JSON array", async () => {
+    const engine = new FakeEngine((t) => t.toUpperCase());
+    const out = await translateBatch(engine, [{ id: "l1", text: JSON.stringify(["one", "two"]), kind: "list_text" }], base);
+    expect(out.items[0]).toEqual({ id: "l1", ok: true, value: JSON.stringify(["ONE", "TWO"]) });
+  });
+
+  it("fails the item on invalid JSON instead of guessing", async () => {
+    const engine = new FakeEngine((t) => t);
+    const out = await translateBatch(engine, [{ id: "bad", text: "{not json", kind: "rich_text" }], base);
+    const item = out.items[0]!;
+    expect(item.ok).toBe(false);
+    expect((item as { issues: { code: string }[] }).issues[0]!.code).toBe("structure");
+  });
+
+  it("fails the whole item when one part loses a protected marker", async () => {
+    const rich = JSON.stringify({ type: "root", children: [{ type: "text", value: "Visit CollagenLab" }, { type: "text", value: "Plain" }] });
+    const engine = new FakeEngine((t) => (t.includes("⟦") ? "dropped it" : t));
+    const out = await translateBatch(engine, [{ id: "m2", text: rich, kind: "rich_text" }], base);
+    expect(out.items[0]!.ok).toBe(false);
+  });
+
+  it("keeps empty parts verbatim without sending them to the engine", async () => {
+    const engine = new FakeEngine((t) => t.toUpperCase());
+    const out = await translateBatch(engine, [{ id: "l2", text: JSON.stringify(["", "word"]), kind: "list_text" }], base);
+    expect(out.items[0]).toEqual({ id: "l2", ok: true, value: JSON.stringify(["", "WORD"]) });
+    expect(engine.lastRequest!.items).toHaveLength(1);
+  });
+
+  it("maps the new Shopify content types", () => {
+    expect(contentKind("RICH_TEXT_FIELD")).toBe("rich_text");
+    expect(contentKind("LIST_SINGLE_LINE_TEXT_FIELD")).toBe("list_text");
+    expect(contentKind("JSON")).toBeNull();
   });
 });

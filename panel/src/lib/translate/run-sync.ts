@@ -69,6 +69,7 @@ export async function runStoreSync(store: StoreRecord, options: RunSyncOptions):
     failed: 0,
     skippedLocked: 0,
     adopted: 0,
+    unsupported: 0,
     usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
   };
 
@@ -97,6 +98,7 @@ export async function runStoreSync(store: StoreRecord, options: RunSyncOptions):
       total.failed += summary.failed;
       total.skippedLocked += summary.skippedLocked;
       total.adopted += summary.adopted;
+      total.unsupported += summary.unsupported;
       total.usage.inputTokens += summary.usage.inputTokens;
       total.usage.outputTokens += summary.usage.outputTokens;
       total.usage.costUsd += summary.usage.costUsd;

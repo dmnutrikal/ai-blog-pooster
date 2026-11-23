@@ -3,10 +3,12 @@
 
 import { markersIn } from "./placeholders";
 
-export type ContentKind = "text" | "html" | "url";
+// rich_text and list_text are structured JSON; the pipeline explodes them into plain
+// text parts before the engine sees them and rebuilds the JSON afterwards.
+export type ContentKind = "text" | "html" | "url" | "rich_text" | "list_text";
 
 export interface ValidationIssue {
-  code: "empty" | "markers" | "html_tags" | "length";
+  code: "empty" | "markers" | "html_tags" | "length" | "structure";
   message: string;
 }
 
