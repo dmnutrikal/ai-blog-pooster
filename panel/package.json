@@ -1,0 +1,37 @@
+{
+  "name": "nutrikal-panel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "phase0:e2e": "tsx --env-file-if-exists=.env scripts/phase0-e2e.ts",
+    "phase0:count": "tsx --env-file-if-exists=.env scripts/phase0-count.ts",
+    "gen-key": "node -e \"console.log(require('node:crypto').randomBytes(32).toString('base64'))\"",
+    "import-stores": "tsx --env-file-if-exists=.env scripts/import-pipeline-stores.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
+    "@supabase/supabase-js": "^2.119.2",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.17",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}

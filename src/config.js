@@ -2,6 +2,7 @@ import 'dotenv/config';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { credentialsFromRow, fetchStoreRow } from './lib/storeRecord.js';
 
 const COMPLIANCE_MODES = new Set(['log', 'block', 'off']);
 const PUBLISH_STATUSES = new Set(['draft', 'published']);
@@ -129,20 +130,38 @@ const publishStatus = process.env.PUBLISH_STATUS?.trim() || storeConfig.publishS
 
 const env = storeConfig.env ?? {};
 
+// The store's row in the shared `stores` table (managed in the panel). When it exists and
+// CREDENTIALS_KEY can decrypt it, its Shopify credentials replace the env vars below, and its
+// public domain / blog GID override the env and store.config.js values. Otherwise everything
+// comes from the environment, as before the panel existed.
+const { row: storeRow, reason: storeRowReason } = await fetchStoreRow({
+  url: process.env.SUPABASE_URL,
+  secretKey: process.env.SUPABASE_SECRET_KEY,
+  slug: STORE,
+});
+const { credentials: panelCredentials, reason: credentialsReason } = credentialsFromRow(
+  storeRow,
+  process.env.CREDENTIALS_KEY?.trim()
+);
+console.log(
+  panelCredentials
+    ? `Store "${STORE}": Shopify credentials from the panel (stores table).`
+    : `Store "${STORE}": Shopify credentials from environment variables (${credentialsReason ?? storeRowReason}).`
+);
+
 // Shared across every store...
 const REQUIRED_SHARED_VARS = ['OPENAI_API_KEY', 'SUPABASE_URL', 'SUPABASE_SECRET_KEY'];
 
 // ...and the store's own credentials, under whatever var names it declares.
-// Required — the pipeline cannot run at all without these. The public domain
-// isn't a secret, so a store may hardcode it (shopify.publicDomain in its
-// store.config.js) instead of declaring an env var; only then is the env var
-// optional (it still overrides when set).
+// Required — the pipeline cannot run at all without these — unless the panel
+// supplies them. The public domain isn't a secret, so a store may hardcode it
+// (shopify.publicDomain in its store.config.js) or set it in the panel instead
+// of declaring an env var; only then is the env var optional (it still
+// overrides store.config.js when set).
 const REQUIRED_VARS = [
   ...REQUIRED_SHARED_VARS,
-  env.shopifyStoreDomain,
-  env.shopifyClientId,
-  env.shopifyClientSecret,
-  storeConfig.shopify?.publicDomain ? null : env.storePublicDomain,
+  ...(panelCredentials ? [] : [env.shopifyStoreDomain, env.shopifyClientId, env.shopifyClientSecret]),
+  storeConfig.shopify?.publicDomain || storeRow?.public_domain ? null : env.storePublicDomain,
 ].filter(Boolean);
 
 function missingVars() {
@@ -199,6 +218,11 @@ export const config = {
     secondaryLocale,
     // [primary, secondary] minus null — the languages actually generated.
     locales,
+    // "Блог" switch in the panel; index.js exits without doing anything when false.
+    // No panel row = enabled, as before.
+    autoblogEnabled: storeRow?.autoblog_enabled ?? true,
+    // 'panel' or 'env' — where the Shopify credentials came from.
+    credentialsSource: panelCredentials ? 'panel' : 'env',
   },
   catalog: {
     enabled: catalogEnabled,
@@ -224,19 +248,20 @@ export const config = {
     secretKey: process.env.SUPABASE_SECRET_KEY,
   },
   shopify: {
-    storeDomain: fromStoreEnv(env.shopifyStoreDomain),
+    storeDomain: panelCredentials?.storeDomain ?? fromStoreEnv(env.shopifyStoreDomain),
     // The customer-facing storefront host used to build public URLs (article
     // links, etc). NOT necessarily the same as storeDomain (the *.myshopify.com
     // admin/API host) or the shop's primaryDomain — confirmed live for
     // collagenlab: products' onlineStoreUrl resolves on collagenlab.bg, which is
     // neither the admin domain nor shop.primaryDomain (collagenlab.eu).
-    publicDomain: fromStoreEnv(env.storePublicDomain, storeConfig.shopify?.publicDomain ?? null),
-    clientId: fromStoreEnv(env.shopifyClientId),
-    clientSecret: fromStoreEnv(env.shopifyClientSecret),
+    publicDomain:
+      storeRow?.public_domain || fromStoreEnv(env.storePublicDomain, storeConfig.shopify?.publicDomain ?? null),
+    clientId: panelCredentials?.clientId ?? fromStoreEnv(env.shopifyClientId),
+    clientSecret: panelCredentials?.clientSecret ?? fromStoreEnv(env.shopifyClientSecret),
     apiVersion: process.env.SHOPIFY_API_VERSION ?? '2026-07',
     // Deferred to the first real publish run — publish.js falls back to
     // fetching+logging the store's default blog if this isn't set yet.
-    blogGid: fromStoreEnv(env.blogGid, storeConfig.shopify?.blogGid ?? null),
+    blogGid: storeRow?.blog_gid || fromStoreEnv(env.blogGid, storeConfig.shopify?.blogGid ?? null),
     // Named in publish.js's "no blog configured" warning.
     blogGidVar: env.blogGid ?? null,
   },

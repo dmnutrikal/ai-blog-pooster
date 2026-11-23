@@ -32,6 +32,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Store credentials: from the panel (stores table, decrypted with the CREDENTIALS_KEY secret)
+  # when the store has a row there; otherwise from the per-store secrets below, as before.
+  #
   # One job per store, all on the schedule above. Adding a store means: a new
   # stores/<id>/ folder (store.config.js + regulatory.js + content.js +
   # products/ — see stores/<id>/README.md), that store's secrets added to the
@@ -68,6 +71,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # Decrypts store credentials saved in the panel (stores table). Empty = use the store secrets below.
+          CREDENTIALS_KEY: ${{ secrets.CREDENTIALS_KEY }}
           SHOPIFY_STORE_DOMAIN: ${{ secrets.SHOPIFY_STORE_DOMAIN }}
           SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
@@ -98,11 +103,12 @@ jobs:
       - name: Check GutExpert secrets
         id: secrets
         env:
+          CREDENTIALS_KEY: ${{ secrets.CREDENTIALS_KEY }}
           SHOPIFY_STORE_DOMAIN_GUTEXPERT: ${{ secrets.SHOPIFY_STORE_DOMAIN_GUTEXPERT }}
           SHOPIFY_CLIENT_ID_GUTEXPERT: ${{ secrets.SHOPIFY_CLIENT_ID_GUTEXPERT }}
           SHOPIFY_CLIENT_SECRET_GUTEXPERT: ${{ secrets.SHOPIFY_CLIENT_SECRET_GUTEXPERT }}
         run: |
-          if [ -n "$SHOPIFY_STORE_DOMAIN_GUTEXPERT" ] && [ -n "$SHOPIFY_CLIENT_ID_GUTEXPERT" ] && [ -n "$SHOPIFY_CLIENT_SECRET_GUTEXPERT" ]; then
+          if { { [ -n "$SHOPIFY_STORE_DOMAIN_GUTEXPERT" ] && [ -n "$SHOPIFY_CLIENT_ID_GUTEXPERT" ] && [ -n "$SHOPIFY_CLIENT_SECRET_GUTEXPERT" ]; } || [ -n "$CREDENTIALS_KEY" ]; }; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::GutExpert secrets not set — skipping the GutExpert pipeline."
@@ -129,6 +135,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # Decrypts store credentials saved in the panel (stores table). Empty = use the store secrets below.
+          CREDENTIALS_KEY: ${{ secrets.CREDENTIALS_KEY }}
           SHOPIFY_STORE_DOMAIN_GUTEXPERT: ${{ secrets.SHOPIFY_STORE_DOMAIN_GUTEXPERT }}
           SHOPIFY_CLIENT_ID_GUTEXPERT: ${{ secrets.SHOPIFY_CLIENT_ID_GUTEXPERT }}
           SHOPIFY_CLIENT_SECRET_GUTEXPERT: ${{ secrets.SHOPIFY_CLIENT_SECRET_GUTEXPERT }}
@@ -157,12 +165,13 @@ jobs:
       - name: Check Made By Nature Labs secrets
         id: secrets
         env:
+          CREDENTIALS_KEY: ${{ secrets.CREDENTIALS_KEY }}
           SHOPIFY_STORE_DOMAIN_MADEBYNATURELABS: ${{ secrets.SHOPIFY_STORE_DOMAIN_MADEBYNATURELABS }}
           SHOPIFY_CLIENT_ID_MADEBYNATURELABS: ${{ secrets.SHOPIFY_CLIENT_ID_MADEBYNATURELABS }}
           SHOPIFY_CLIENT_SECRET_MADEBYNATURELABS: ${{ secrets.SHOPIFY_CLIENT_SECRET_MADEBYNATURELABS }}
           B2B_CTA_URL_MADEBYNATURELABS: ${{ secrets.B2B_CTA_URL_MADEBYNATURELABS }}
         run: |
-          if [ -n "$SHOPIFY_STORE_DOMAIN_MADEBYNATURELABS" ] && [ -n "$SHOPIFY_CLIENT_ID_MADEBYNATURELABS" ] && [ -n "$SHOPIFY_CLIENT_SECRET_MADEBYNATURELABS" ] && [ -n "$B2B_CTA_URL_MADEBYNATURELABS" ]; then
+          if { { [ -n "$SHOPIFY_STORE_DOMAIN_MADEBYNATURELABS" ] && [ -n "$SHOPIFY_CLIENT_ID_MADEBYNATURELABS" ] && [ -n "$SHOPIFY_CLIENT_SECRET_MADEBYNATURELABS" ]; } || [ -n "$CREDENTIALS_KEY" ]; } && [ -n "$B2B_CTA_URL_MADEBYNATURELABS" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::Made By Nature Labs secrets not set — skipping the Made By Nature Labs pipeline."
@@ -189,6 +198,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # Decrypts store credentials saved in the panel (stores table). Empty = use the store secrets below.
+          CREDENTIALS_KEY: ${{ secrets.CREDENTIALS_KEY }}
           SHOPIFY_STORE_DOMAIN_MADEBYNATURELABS: ${{ secrets.SHOPIFY_STORE_DOMAIN_MADEBYNATURELABS }}
           SHOPIFY_CLIENT_ID_MADEBYNATURELABS: ${{ secrets.SHOPIFY_CLIENT_ID_MADEBYNATURELABS }}
           SHOPIFY_CLIENT_SECRET_MADEBYNATURELABS: ${{ secrets.SHOPIFY_CLIENT_SECRET_MADEBYNATURELABS }}
@@ -220,12 +231,13 @@ jobs:
       - name: Check Nutrikal secrets
         id: secrets
         env:
+          CREDENTIALS_KEY: ${{ secrets.CREDENTIALS_KEY }}
           SHOPIFY_STORE_DOMAIN_NUTRIKAL: ${{ secrets.SHOPIFY_STORE_DOMAIN_NUTRIKAL }}
           SHOPIFY_CLIENT_ID_NUTRIKAL: ${{ secrets.SHOPIFY_CLIENT_ID_NUTRIKAL }}
           SHOPIFY_CLIENT_SECRET_NUTRIKAL: ${{ secrets.SHOPIFY_CLIENT_SECRET_NUTRIKAL }}
           B2B_CTA_URL_NUTRIKAL: ${{ secrets.B2B_CTA_URL_NUTRIKAL }}
         run: |
-          if [ -n "$SHOPIFY_STORE_DOMAIN_NUTRIKAL" ] && [ -n "$SHOPIFY_CLIENT_ID_NUTRIKAL" ] && [ -n "$SHOPIFY_CLIENT_SECRET_NUTRIKAL" ] && [ -n "$B2B_CTA_URL_NUTRIKAL" ]; then
+          if { { [ -n "$SHOPIFY_STORE_DOMAIN_NUTRIKAL" ] && [ -n "$SHOPIFY_CLIENT_ID_NUTRIKAL" ] && [ -n "$SHOPIFY_CLIENT_SECRET_NUTRIKAL" ]; } || [ -n "$CREDENTIALS_KEY" ]; } && [ -n "$B2B_CTA_URL_NUTRIKAL" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::Nutrikal secrets not set — skipping the Nutrikal pipeline."
@@ -252,6 +264,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # Decrypts store credentials saved in the panel (stores table). Empty = use the store secrets below.
+          CREDENTIALS_KEY: ${{ secrets.CREDENTIALS_KEY }}
           SHOPIFY_STORE_DOMAIN_NUTRIKAL: ${{ secrets.SHOPIFY_STORE_DOMAIN_NUTRIKAL }}
           SHOPIFY_CLIENT_ID_NUTRIKAL: ${{ secrets.SHOPIFY_CLIENT_ID_NUTRIKAL }}
           SHOPIFY_CLIENT_SECRET_NUTRIKAL: ${{ secrets.SHOPIFY_CLIENT_SECRET_NUTRIKAL }}

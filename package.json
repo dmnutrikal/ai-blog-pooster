@@ -13,7 +13,8 @@
     "generate-topics": "node src/steps/generateTopics.js",
     "load-calendar": "node src/steps/loadCalendar.js",
     "run": "node src/index.js",
-    "test-connections": "node scripts/testConnections.js"
+    "test-connections": "node scripts/testConnections.js",
+    "check-stores": "node scripts/checkStores.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

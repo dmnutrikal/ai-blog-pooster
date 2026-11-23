@@ -8,6 +8,7 @@ import { generateImage } from './steps/generateImage.js';
 import { publishArticle } from './steps/publish.js';
 import { generateTopics } from './steps/generateTopics.js';
 import { supabase } from './lib/supabase.js';
+import { startRun, finishRun } from './lib/runLog.js';
 import { config, STORE } from './config.js';
 
 // Empty pool -> undefined, so writeArticle.js falls back to the product name.
@@ -126,6 +127,26 @@ async function processTopic(topic) {
 
 async function run() {
   const n = config.pipeline.articlesPerRun;
+
+  if (!config.store.autoblogEnabled) {
+    console.log(`Blog is switched off for store=${STORE} in the panel — nothing to do.`);
+    await startRun({ store: STORE, articlesPerRun: n, status: 'skipped' });
+    return;
+  }
+
+  const runId = await startRun({ store: STORE, articlesPerRun: n });
+  const tally = { published: 0, draft: 0, blocked: 0, errored: 0 };
+  const items = [];
+  try {
+    await runTopics(n, tally, items);
+  } catch (err) {
+    await finishRun(runId, { status: 'failed', tally, items, error: err.message });
+    throw err;
+  }
+  await finishRun(runId, { status: 'completed', tally, items });
+}
+
+async function runTopics(n, tally, items) {
   console.log(
     `Starting pipeline run: store=${STORE} | up to ${n} article(s) | ` +
       `COMPLIANCE_MODE=${config.pipeline.complianceMode} | PUBLISH_STATUS=${config.pipeline.publishStatus}`
@@ -153,7 +174,6 @@ async function run() {
     }
   }
 
-  const tally = { published: 0, draft: 0, blocked: 0, errored: 0 };
   const attemptedTopicIds = new Set();
 
   for (let i = 0; i < n; i++) {
@@ -191,12 +211,14 @@ async function run() {
       if (result.status === 'blocked') tally.blocked++;
       else if (result.status === 'published') tally.published++;
       else tally.draft++;
+      items.push({ topic_id: topic.id, keyword: topic.keyword, status: result.status, shopify_gid: result.shopify_gid ?? null });
 
       console.log(
         `  -> status=${result.status} shopify_gid=${result.shopify_gid ?? 'n/a'} adminUrl=${result.adminUrl ?? 'n/a'}`
       );
     } catch (err) {
       tally.errored++;
+      items.push({ topic_id: topic.id, keyword: topic.keyword, status: 'error', error: err.message });
       console.error(`  -> ERROR processing topic ${topic.id}: ${err.message}`);
 
       const { error: updateError } = await supabase

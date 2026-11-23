@@ -1,0 +1,35 @@
+// TranslatableResourceType values in API 2026-10 (checked with the Shopify Dev validator).
+// METAFIELD is deprecated: translatable metafields are read through translatableResourcesByIds.
+export const TRANSLATABLE_RESOURCE_TYPES = [
+  "PRODUCT",
+  "PRODUCT_OPTION",
+  "PRODUCT_OPTION_VALUE",
+  "COLLECTION",
+  "FILTER",
+  "ARTICLE",
+  "BLOG",
+  "PAGE",
+  "MENU",
+  "LINK",
+  "EMAIL_TEMPLATE",
+  "PACKING_SLIP_TEMPLATE",
+  "DELIVERY_METHOD_DEFINITION",
+  "PAYMENT_GATEWAY",
+  "SHOP",
+  "SHOP_POLICY",
+  "METAOBJECT",
+  "SELLING_PLAN",
+  "SELLING_PLAN_GROUP",
+  "MEDIA_IMAGE",
+  "COLLECTION_IMAGE",
+  "ARTICLE_IMAGE",
+  "ONLINE_STORE_THEME",
+  "ONLINE_STORE_THEME_APP_EMBED",
+  "ONLINE_STORE_THEME_JSON_TEMPLATE",
+  "ONLINE_STORE_THEME_LOCALE_CONTENT",
+  "ONLINE_STORE_THEME_SECTION_GROUP",
+  "ONLINE_STORE_THEME_SETTINGS_CATEGORY",
+  "ONLINE_STORE_THEME_SETTINGS_DATA_SECTIONS",
+] as const;
+
+export type TranslatableResourceType = (typeof TRANSLATABLE_RESOURCE_TYPES)[number];

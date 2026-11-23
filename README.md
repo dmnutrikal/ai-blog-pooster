@@ -159,6 +159,7 @@ All configuration is read from environment variables via `src/config.js`, which 
 | `OPENAI_MODEL_EMBEDDING` | Identifier of the embedding model used for semantic search. |
 | `SUPABASE_URL` | URL of the Supabase project. |
 | `SUPABASE_SECRET_KEY` | Server-side secret key for Supabase (never the anon/public key). |
+| `CREDENTIALS_KEY` | Decrypts the store's Client secret saved in the panel (same key as `panel/.env`). Optional — without it the `SHOPIFY_*` vars are used. |
 | `STORE` | Which `stores/<id>/` folder the run operates on. Defaults to `collagenlab`. |
 | `SHOPIFY_STORE_DOMAIN` | The store's `*.myshopify.com` domain. |
 | `SHOPIFY_CLIENT_ID` | Client ID of the Shopify custom app (client-credentials grant). |
@@ -173,6 +174,33 @@ All configuration is read from environment variables via `src/config.js`, which 
 | `IMAGE_SIZE` | Dimensions of the generated featured image. |
 | `IMAGE_QUALITY` | Quality tier of the generated featured image. |
 | `IMAGE_FORCE_FLAVOR` | Test/trial-run only — forces a specific product flavor slug (from `stores/<STORE>/products/`) instead of picking one at random per article. |
+
+## Panel (shared stores)
+
+`panel/` is a Next.js admin panel (Bulgarian UI) that shares this Supabase project. Stores are
+connected there once — myshopify domain, Client ID, Client secret (stored AES-GCM encrypted),
+public domain and blog — and both the blog pipeline and the translation module use that record.
+The store's `slug` is the same value as `topics.store` / `articles.store` and the `stores/<slug>/`
+folder, so existing data is reused as is.
+
+- **Credentials:** `src/config.js` reads the `stores` row for `STORE`. If there is no row, no
+  `CREDENTIALS_KEY`, or the table is missing, it falls back to the env vars and logs why.
+- **On/off:** "Блог генератор" on the store page sets `autoblog_enabled`; a disabled store's run
+  is recorded as `skipped` and generates nothing. The GitHub job itself must also be enabled.
+- **Run history:** each run writes a row to `blog_runs` (best effort — a Supabase error never
+  stops a run). The panel's blog page shows runs, next topics, blocked topics and recent articles.
+- `npm run check-stores` — read-only: where each store's credentials come from, and whether the
+  token works.
+
+Setup, in order:
+
+1. Apply `supabase/migrations/20261120090000_shared_panel.sql` (additive; it does not touch
+   `topics`, `products`, `articles`).
+2. `cd panel && npm install && npm run gen-key` → put the key in `panel/.env` as `CREDENTIALS_KEY`
+   and in the GitHub secret `CREDENTIALS_KEY`. Fill `SUPABASE_URL` / `SUPABASE_SECRET_KEY` there too.
+3. `npm run import-stores` (dry run), then `npm run import-stores -- --apply --paused gutexpert` —
+   copies the stores from the pipeline `.env` into the panel after a connection test.
+4. `npm run dev` → http://127.0.0.1:3000. The panel has no login yet; it binds to localhost only.
 
 ## Compliance & Safety
 
