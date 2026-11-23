@@ -49,7 +49,9 @@ export default async function TranslationsPage({ params }: { params: Promise<{ i
           <p>
             <span className="badge badge-warn">Тече</span>{" "}
             <span className="small">
-              {running.dry_run ? "пробно" : "със запис"} · {running.translated} преведени · {running.failed} отказани · ${Number(running.cost_usd).toFixed(4)}
+              {running.params.adopt
+                ? `приемане на сегашните преводи (нищо не се превежда и записва) · ${running.translated} приети`
+                : `${running.dry_run ? "пробно" : "със запис"} · ${running.translated} преведени · ${running.failed} отказани · $${Number(running.cost_usd).toFixed(4)}`}
             </span>
           </p>
         ) : (
@@ -152,7 +154,8 @@ export default async function TranslationsPage({ params }: { params: Promise<{ i
                 <span>
                   {formatDate(job.created_at)}{" "}
                   <span className="muted small">
-                    · {job.dry_run ? "пробно" : "запис"} · {job.triggered_by === "cli" ? "от терминала" : "от панела"}
+                    · {job.params.adopt ? "приемане на базата" : job.dry_run ? "пробно" : "запис"} ·{" "}
+                    {job.triggered_by === "cli" ? "от терминала" : job.triggered_by === "schedule" ? "по график" : "от панела"}
                     {job.params.locales?.length ? ` · ${job.params.locales.join(", ")}` : ""}
                   </span>
                   {job.error && <span className="small" style={{ display: "block", color: "var(--err)" }}>{job.error}</span>}
@@ -161,7 +164,9 @@ export default async function TranslationsPage({ params }: { params: Promise<{ i
                   <span className={`badge ${JOB_STATUS[job.status].badge}`}>{JOB_STATUS[job.status].label}</span>
                 </span>
                 <span className="small muted">
-                  {job.translated} преведени · {job.failed} отказани · ${Number(job.cost_usd).toFixed(4)}
+                  {job.params.adopt
+                    ? `${job.translated} приети`
+                    : `${job.translated} преведени · ${job.failed} отказани · $${Number(job.cost_usd).toFixed(4)}`}
                 </span>
               </li>
             ))}

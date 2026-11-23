@@ -1,7 +1,10 @@
 // Store sync: walk every translatable resource of a type, translate what is missing or
 // outdated into each target locale, and (in write mode) register it back to Shopify.
 //
-// Shopify and the database are ports so tests can run the whole flow with fakes.
+// Shopify and the database are ports so tests can run the whole flow with fakes. The
+// database port is batch-first: a store the size of a blog archive produces tens of
+// thousands of rows, and one round-trip per row made the first adopt run crawl.
+//
 // Rules enforced here, not left to callers: a `locked` translation is never touched,
 // a failed validation is recorded and never written, every write backs up the previous
 // value first, and writes require the store's writesEnabled on top of { write: true }.
@@ -42,7 +45,7 @@ export interface SyncShopify {
   register(resourceId: string, translations: { key: string; locale: string; value: string; translatableContentDigest: string }[]): Promise<void>;
 }
 
-// --- Database port ----------------------------------------------------------
+// --- Database port (batch-first) --------------------------------------------
 
 export interface TranslationRow {
   id: number;
@@ -62,15 +65,17 @@ export interface SaveTranslationPatch {
 }
 
 export interface SyncDb {
-  upsertResource(storeId: string, shopifyId: string, resourceType: string, label: string | null): Promise<number>;
-  upsertContent(
-    resourceId: number,
-    content: { key: string; shopifyType: string; kind: ContentKind; sourceLocale: string; value: string; digest: string | null },
-  ): Promise<number>;
-  getTranslation(contentId: number, locale: string): Promise<TranslationRow | null>;
-  saveTranslation(contentId: number, locale: string, patch: SaveTranslationPatch): Promise<number>;
-  backup(translationId: number, previousValue: string | null, jobId: number): Promise<void>;
-  addJobItem(jobId: number, translationId: number | null, status: string, reason: string | null): Promise<void>;
+  // Returns shopifyId → database id.
+  upsertResources(storeId: string, resources: { shopifyId: string; resourceType: string; label: string | null }[]): Promise<Map<string, number>>;
+  // Returns `${resourceId}:${key}` → database id.
+  upsertContents(
+    rows: { resourceId: number; key: string; shopifyType: string; kind: ContentKind; sourceLocale: string; value: string; digest: string | null }[],
+  ): Promise<Map<string, number>>;
+  getTranslations(contentIds: number[], locale: string): Promise<Map<number, TranslationRow>>;
+  // Every row in one call must carry the same patch fields. Returns contentId → translation id.
+  saveTranslations(locale: string, rows: { contentId: number; patch: SaveTranslationPatch }[]): Promise<Map<number, number>>;
+  addBackups(rows: { translationId: number; previousValue: string | null; jobId: number }[]): Promise<void>;
+  addJobItems(jobId: number, items: { translationId: number | null; status: string; reason: string | null }[]): Promise<void>;
   bumpJob(jobId: number, delta: { scanned?: number; translated?: number; failed?: number; usage?: Usage }): Promise<void>;
   glossary(storeId: string): Promise<{ neverTranslate: string[]; translateAs: Map<string, { source: string; target: string }[]> }>;
 }
@@ -106,7 +111,6 @@ export interface SyncSummary {
 
 interface QueuedField {
   resourceId: string;
-  dbResourceId: number;
   contentId: number;
   key: string;
   kind: ContentKind;
@@ -160,83 +164,115 @@ export async function syncStore(
   };
 
   for (const locale of targets) {
-    log(`→ ${locale}`);
     const queue: QueuedField[] = [];
     let after: string | null = null;
     let seen = 0;
+    let adoptedHere = 0;
 
-    paging: for (;;) {
+    for (;;) {
       const page = await shopify.listPage(resourceType, locale, after);
-      for (const node of page.nodes) {
-        if (options.maxResources !== undefined && seen >= options.maxResources) break paging;
-        seen++;
-        const label =
-          node.translatableContent.find((c) => c.key === "title")?.value ??
-          node.translatableContent.find((c) => c.value)?.value?.slice(0, 80) ??
-          null;
-        const dbResourceId = await db.upsertResource(store.id, node.resourceId, resourceType, label);
-        const states = new Map(node.translations.map((t) => [t.key, t]));
+      let nodes = page.nodes;
+      if (options.maxResources !== undefined) nodes = nodes.slice(0, options.maxResources - seen);
+      seen += nodes.length;
 
+      const resourceIds = await db.upsertResources(
+        store.id,
+        nodes.map((node) => ({
+          shopifyId: node.resourceId,
+          resourceType,
+          label:
+            node.translatableContent.find((c) => c.key === "title")?.value ??
+            node.translatableContent.find((c) => c.value)?.value?.slice(0, 80) ??
+            null,
+        })),
+      );
+
+      // Supported, non-empty fields of this page, in one flat list.
+      const entries: { node: SyncResourceNode; content: SyncContent & { value: string }; kind: ContentKind; dbResourceId: number }[] = [];
+      for (const node of nodes) {
+        const dbResourceId = resourceIds.get(node.resourceId)!;
         for (const content of node.translatableContent) {
           const kind = contentKind(content.type);
           if (!kind || !content.value || !content.digest) continue; // unsupported or empty source
           summary.scanned++;
-          const contentId = await db.upsertContent(dbResourceId, {
-            key: content.key,
-            shopifyType: content.type,
-            kind,
-            sourceLocale: content.locale,
-            value: content.value,
-            digest: content.digest,
-          });
-
-          const row = await db.getTranslation(contentId, locale);
-          if (row?.status === "locked") {
-            summary.skippedLocked++;
-            await db.addJobItem(options.jobId, row.id, "skipped", "locked");
-            continue;
-          }
-
-          const state = states.get(content.key);
-          const needs = !state?.value || state.outdated;
-          if (!needs) {
-            // Mirror Shopify's current translation so coverage counts are real.
-            if (!row || row.status !== "current" || row.value !== state.value) {
-              await db.saveTranslation(contentId, locale, { value: state.value, status: "current", origin: row ? undefined : "imported", sourceDigest: content.digest });
-            }
-            continue;
-          }
-
-          // The store's state for this exact source version was adopted as the baseline:
-          // leave it alone until the source text changes (new digest).
-          if (row?.status === "current" && row.sourceDigest !== null && row.sourceDigest === content.digest) continue;
-
-          if (options.adopt) {
-            const id = await db.saveTranslation(contentId, locale, { value: state?.value ?? null, status: "current", origin: "imported", sourceDigest: content.digest });
-            await db.addJobItem(options.jobId, id, "adopted", null);
-            summary.adopted++;
-            continue;
-          }
-
-          queue.push({
-            resourceId: node.resourceId,
-            dbResourceId,
-            contentId,
-            key: content.key,
-            kind,
-            text: content.value,
-            digest: content.digest,
-            previousValue: state?.value ?? null,
-          });
+          entries.push({ node, content: { ...content, value: content.value }, kind, dbResourceId });
         }
       }
-      if (!page.hasNextPage || page.endCursor === null) break;
+
+      const contentIds = await db.upsertContents(
+        entries.map((e) => ({
+          resourceId: e.dbResourceId,
+          key: e.content.key,
+          shopifyType: e.content.type,
+          kind: e.kind,
+          sourceLocale: e.content.locale,
+          value: e.content.value,
+          digest: e.content.digest,
+        })),
+      );
+      const rows = await db.getTranslations([...contentIds.values()], locale);
+
+      const mirrors: { contentId: number; patch: SaveTranslationPatch }[] = [];
+      const adopts: { contentId: number; patch: SaveTranslationPatch }[] = [];
+      const lockedItems: { translationId: number | null; status: string; reason: string | null }[] = [];
+
+      for (const e of entries) {
+        const contentId = contentIds.get(`${e.dbResourceId}:${e.content.key}`)!;
+        const row = rows.get(contentId);
+        const state = e.node.translations.find((t) => t.key === e.content.key);
+
+        if (row?.status === "locked") {
+          summary.skippedLocked++;
+          lockedItems.push({ translationId: row.id, status: "skipped", reason: "locked" });
+          continue;
+        }
+
+        const needs = !state?.value || state.outdated;
+        if (!needs) {
+          // Mirror Shopify's current translation so coverage counts are real.
+          if (!row || row.status !== "current" || row.value !== state.value) {
+            mirrors.push({ contentId, patch: { value: state.value, status: "current", origin: "imported", sourceDigest: e.content.digest } });
+          }
+          continue;
+        }
+
+        // The store's state for this exact source version was adopted as the baseline:
+        // leave it alone until the source text changes (new digest).
+        if (row?.status === "current" && row.sourceDigest !== null && row.sourceDigest === e.content.digest) continue;
+
+        if (options.adopt) {
+          adopts.push({ contentId, patch: { value: state?.value ?? null, status: "current", origin: "imported", sourceDigest: e.content.digest } });
+          continue;
+        }
+
+        queue.push({
+          resourceId: e.node.resourceId,
+          contentId,
+          key: e.content.key,
+          kind: e.kind,
+          text: e.content.value,
+          digest: e.content.digest!,
+          previousValue: state?.value ?? null,
+        });
+      }
+
+      if (mirrors.length) await db.saveTranslations(locale, mirrors);
+      if (adopts.length) {
+        const ids = await db.saveTranslations(locale, adopts);
+        await db.addJobItems(options.jobId, adopts.map((a) => ({ translationId: ids.get(a.contentId) ?? null, status: "adopted", reason: null })));
+        summary.adopted += adopts.length;
+        adoptedHere += adopts.length;
+      }
+      if (lockedItems.length) await db.addJobItems(options.jobId, lockedItems);
+
+      const reachedMax = options.maxResources !== undefined && seen >= options.maxResources;
+      if (!page.hasNextPage || page.endCursor === null || reachedMax) break;
       after = page.endCursor;
     }
 
     summary.queued += queue.length;
-    await db.bumpJob(options.jobId, { scanned: queue.length });
-    log(`  ${seen} resources, ${queue.length} fields to translate`);
+    await db.bumpJob(options.jobId, { scanned: queue.length, translated: adoptedHere });
+    log(`→ ${locale}: ${seen} resources, ${queue.length} fields to translate${adoptedHere ? `, ${adoptedHere} adopted` : ""}`);
 
     for (const chunk of chunkQueue(queue, batchItems, batchChars)) {
       const items: SourceItem[] = chunk.map((q) => ({ id: `${q.contentId}`, text: q.text, kind: q.kind, field: q.key }));
@@ -252,10 +288,8 @@ export async function syncStore(
       } catch (err) {
         // The whole batch failed (engine error): record every field and move on.
         const reason = err instanceof Error ? err.message : String(err);
-        for (const q of chunk) {
-          const id = await db.saveTranslation(q.contentId, locale, { status: "failed", failureReason: reason, sourceDigest: q.digest });
-          await db.addJobItem(options.jobId, id, "failed", reason);
-        }
+        const ids = await db.saveTranslations(locale, chunk.map((q) => ({ contentId: q.contentId, patch: { status: "failed" as const, failureReason: reason, sourceDigest: q.digest } })));
+        await db.addJobItems(options.jobId, chunk.map((q) => ({ translationId: ids.get(q.contentId) ?? null, status: "failed", reason })));
         summary.failed += chunk.length;
         await db.bumpJob(options.jobId, { failed: chunk.length });
         log(`  ✗ batch of ${chunk.length}: ${reason}`);
@@ -267,27 +301,30 @@ export async function syncStore(
       summary.usage.costUsd += outcome.usage.costUsd;
 
       const accepted: (QueuedField & { value: string })[] = [];
+      const rejected: { field: QueuedField; reason: string }[] = [];
       for (const item of outcome.items) {
         const q = chunk.find((c) => `${c.contentId}` === item.id)!;
-        if (item.ok) {
-          accepted.push({ ...q, value: item.value });
-        } else {
-          const reason = item.issues.map((i) => `${i.code}: ${i.message}`).join("; ");
-          const id = await db.saveTranslation(q.contentId, locale, { status: "failed", failureReason: reason, sourceDigest: q.digest });
-          await db.addJobItem(options.jobId, id, "failed", reason);
-          summary.failed++;
-        }
+        if (item.ok) accepted.push({ ...q, value: item.value });
+        else rejected.push({ field: q, reason: item.issues.map((i) => `${i.code}: ${i.message}`).join("; ") });
+      }
+      if (rejected.length) {
+        const ids = await db.saveTranslations(
+          locale,
+          // One call per distinct reason keeps the patch fields uniform.
+          rejected.map((r) => ({ contentId: r.field.contentId, patch: { status: "failed" as const, failureReason: r.reason, sourceDigest: r.field.digest } })),
+        );
+        await db.addJobItems(options.jobId, rejected.map((r) => ({ translationId: ids.get(r.field.contentId) ?? null, status: "failed", reason: r.reason })));
+        summary.failed += rejected.length;
       }
       summary.translated += accepted.length;
-      await db.bumpJob(options.jobId, {
-        translated: accepted.length,
-        failed: outcome.items.length - accepted.length,
-        usage: outcome.usage,
-      });
+      await db.bumpJob(options.jobId, { translated: accepted.length, failed: rejected.length, usage: outcome.usage });
 
       if (!write) {
-        for (const a of accepted) {
-          await db.saveTranslation(a.contentId, locale, { value: a.value, status: "pending_review", origin: "ai", model: outcome.usage.model, sourceDigest: a.digest });
+        if (accepted.length) {
+          await db.saveTranslations(
+            locale,
+            accepted.map((a) => ({ contentId: a.contentId, patch: { value: a.value, status: "pending_review" as const, origin: "ai" as const, model: outcome.usage.model, sourceDigest: a.digest } })),
+          );
         }
         continue;
       }
@@ -300,12 +337,11 @@ export async function syncStore(
         byResource.set(a.resourceId, group);
       }
       for (const [resourceId, group] of byResource) {
-        const ids = new Map<number, number>(); // contentId → translationId
-        for (const a of group) {
-          const id = await db.saveTranslation(a.contentId, locale, { status: "outdated", value: a.previousValue, sourceDigest: a.digest });
-          ids.set(a.contentId, id);
-          await db.backup(id, a.previousValue, options.jobId);
-        }
+        const ids = await db.saveTranslations(
+          locale,
+          group.map((a) => ({ contentId: a.contentId, patch: { status: "outdated" as const, value: a.previousValue, sourceDigest: a.digest } })),
+        );
+        await db.addBackups(group.map((a) => ({ translationId: ids.get(a.contentId)!, previousValue: a.previousValue, jobId: options.jobId })));
         try {
           await shopify.register(
             resourceId,
@@ -313,30 +349,33 @@ export async function syncStore(
           );
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
-          for (const a of group) {
-            const id = ids.get(a.contentId)!;
-            await db.saveTranslation(a.contentId, locale, { status: "failed", failureReason: `translationsRegister: ${reason}`, sourceDigest: a.digest });
-            await db.addJobItem(options.jobId, id, "failed", `translationsRegister: ${reason}`);
-          }
+          await db.saveTranslations(
+            locale,
+            group.map((a) => ({ contentId: a.contentId, patch: { status: "failed" as const, failureReason: `translationsRegister: ${reason}`, sourceDigest: a.digest } })),
+          );
+          await db.addJobItems(options.jobId, group.map((a) => ({ translationId: ids.get(a.contentId) ?? null, status: "failed", reason: `translationsRegister: ${reason}` })));
           summary.failed += group.length;
           summary.translated -= group.length;
           await db.bumpJob(options.jobId, { failed: group.length, translated: -group.length });
           log(`  ✗ register ${resourceId}: ${reason}`);
           continue;
         }
-        for (const a of group) {
-          const id = ids.get(a.contentId)!;
-          await db.saveTranslation(a.contentId, locale, {
-            value: a.value,
-            status: "current",
-            origin: "ai",
-            model: outcome.usage.model,
-            sourceDigest: a.digest,
-            writtenAt: new Date().toISOString(),
-          });
-          await db.addJobItem(options.jobId, id, "written", null);
-          summary.written++;
-        }
+        await db.saveTranslations(
+          locale,
+          group.map((a) => ({
+            contentId: a.contentId,
+            patch: {
+              value: a.value,
+              status: "current" as const,
+              origin: "ai" as const,
+              model: outcome.usage.model,
+              sourceDigest: a.digest,
+              writtenAt: new Date().toISOString(),
+            },
+          })),
+        );
+        await db.addJobItems(options.jobId, group.map((a) => ({ translationId: ids.get(a.contentId) ?? null, status: "written", reason: null })));
+        summary.written += group.length;
       }
     }
   }

@@ -32,36 +32,58 @@ function fakeDb(
   const saved: SavedTranslation[] = [];
   const backups: { translationId: number; previousValue: string | null }[] = [];
   const jobItems: { status: string; reason: string | null }[] = [];
-  const contentIds = new Map<string, number>();
+  const contentIds = new Map<string, number>(); // content key → id
+  const contentKeyById = new Map<number, string>();
+  const resourceIds = new Map<string, number>();
   let contentSeq = 0;
 
   const db: SyncDb = {
-    async upsertResource() {
-      return 1;
+    async upsertResources(_storeId, resources) {
+      const result = new Map<string, number>();
+      for (const r of resources) {
+        if (!resourceIds.has(r.shopifyId)) resourceIds.set(r.shopifyId, resourceIds.size + 1);
+        result.set(r.shopifyId, resourceIds.get(r.shopifyId)!);
+      }
+      return result;
     },
-    async upsertContent(_resourceId, content) {
-      const key = content.key;
-      if (!contentIds.has(key)) contentIds.set(key, ++contentSeq);
-      return contentIds.get(key)!;
+    async upsertContents(rows) {
+      const result = new Map<string, number>();
+      for (const c of rows) {
+        if (!contentIds.has(c.key)) {
+          contentIds.set(c.key, ++contentSeq);
+          contentKeyById.set(contentSeq, c.key);
+        }
+        result.set(`${c.resourceId}:${c.key}`, contentIds.get(c.key)!);
+      }
+      return result;
     },
-    async getTranslation(contentId, locale) {
-      const hit = Object.entries(existing).find(([k]) => {
-        const [key, l] = k.split("@");
-        return contentIds.get(key!) === contentId && l === locale;
-      });
-      if (hit) return { sourceDigest: null, ...hit[1] };
-      const prior = [...saved].reverse().find((s) => s.contentId === contentId && s.locale === locale);
-      return prior ? { id: nextId, status: prior.status, value: prior.value ?? null, sourceDigest: prior.sourceDigest ?? null } : null;
+    async getTranslations(ids, locale) {
+      const result = new Map<number, TranslationRowShape>();
+      for (const contentId of ids) {
+        const key = contentKeyById.get(contentId);
+        const hit = key ? existing[`${key}@${locale}`] : undefined;
+        if (hit) {
+          result.set(contentId, { sourceDigest: null, ...hit });
+          continue;
+        }
+        const prior = [...saved].reverse().find((s) => s.contentId === contentId && s.locale === locale);
+        if (prior) result.set(contentId, { id: nextId, status: prior.status, value: prior.value ?? null, sourceDigest: prior.sourceDigest ?? null });
+      }
+      return result;
     },
-    async saveTranslation(contentId, locale, patch) {
-      saved.push({ contentId, locale, ...patch });
-      return ++nextId;
+    async saveTranslations(locale, rows) {
+      const result = new Map<number, number>();
+      for (const { contentId, patch } of rows) {
+        saved.push({ contentId, locale, ...patch });
+        result.set(contentId, ++nextId);
+      }
+      return result;
     },
-    async backup(translationId, previousValue) {
-      backups.push({ translationId, previousValue });
+    async addBackups(rows) {
+      for (const b of rows) backups.push({ translationId: b.translationId, previousValue: b.previousValue });
     },
-    async addJobItem(_jobId, _translationId, status, reason) {
-      jobItems.push({ status, reason });
+    async addJobItems(_jobId, items) {
+      for (const i of items) jobItems.push({ status: i.status, reason: i.reason });
     },
     async bumpJob() {},
     async glossary() {
@@ -70,6 +92,8 @@ function fakeDb(
   };
   return { db, saved, backups, jobItems, contentIds };
 }
+
+type TranslationRowShape = { id: number; status: SavedTranslation["status"]; value: string | null; sourceDigest: string | null };
 
 class EchoEngine implements TranslationEngine {
   readonly name = "echo";
