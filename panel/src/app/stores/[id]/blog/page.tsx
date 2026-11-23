@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { addBlogTopics } from "@/app/actions";
 import { formatDate } from "@/app/ConnectionResult";
 import { blogSummary, highFlags, listArticles, listRuns, nextTopics, problemTopics, type BlogRun } from "@/lib/blog/queries";
 import { storeRepository } from "@/lib/stores/repository";
@@ -108,6 +109,36 @@ export default async function BlogPage({ params }: { params: Promise<{ id: strin
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="card">
+        <h2>Добави заглавия за статии</h2>
+        <p className="small muted">
+          По едно заглавие на ред. Влизат в опашката като чакащи теми и блог генераторът пише статия по всяко от тях при следващите пускания.
+        </p>
+        <form action={addBlogTopics.bind(null, store.id)}>
+          <div className="field">
+            <label htmlFor="titles">Заглавия</label>
+            <textarea id="titles" name="titles" rows={4} required placeholder={"Collagen and sleep quality\nWhy magnesium matters for recovery"} />
+          </div>
+          <div className="grid">
+            <div className="field">
+              <label htmlFor="titleMode">Как да се използват</label>
+              <select id="titleMode" name="titleMode" defaultValue="keyword">
+                <option value="keyword">Като теми — системата измисля заглавието</option>
+                <option value="en">Точни заглавия (английски)</option>
+                <option value="bg">Точни заглавия (български)</option>
+              </select>
+            </div>
+            <div className="toggle field">
+              <input id="priority" name="priority" type="checkbox" />
+              <label htmlFor="priority">С предимство (пред всички чакащи)</label>
+            </div>
+          </div>
+          <button className="btn" type="submit">
+            Добави в опашката
+          </button>
+        </form>
       </section>
 
       <section className="card" id="topics">

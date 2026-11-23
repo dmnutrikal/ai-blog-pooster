@@ -196,3 +196,37 @@ export async function setTranslateWeeklyEnabled(storeId: string, formData: FormD
   revalidatePath(`/stores/${storeId}/translations`);
   revalidatePath(`/stores/${storeId}`);
 }
+
+// --- Блог: ръчни заглавия за статии ------------------------------------------
+
+// Inserts new pending topics for the blog pipeline. One line = one topic; with an
+// exact-title mode the article comes out with exactly that headline (fixed_title_*).
+// The panel only ever INSERTS topics — existing rows stay the pipeline's business.
+export async function addBlogTopics(storeId: string, formData: FormData): Promise<void> {
+  const store = await storeRepository().get(storeId);
+  if (!store) return;
+  const mode = String(formData.get("titleMode") ?? "keyword");
+  const priority = formData.get("priority") === "on" ? 100 : 0;
+  const lines = [
+    ...new Set(
+      String(formData.get("titles") ?? "")
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 100);
+  if (!lines.length) return;
+
+  const { supabase } = await import("@/lib/supabase");
+  const rows = lines.map((line) => ({
+    store: store.slug,
+    keyword: line,
+    status: "pending",
+    priority,
+    ...(mode === "en" ? { fixed_title_en: line } : mode === "bg" ? { fixed_title_bg: line } : {}),
+  }));
+  const { error } = await supabase().from("topics").insert(rows);
+  if (error) throw new Error(`Темите не бяха добавени: ${error.message}`);
+  await audit(storeId, "blog.topics_added", { count: rows.length, mode, priority });
+  revalidatePath(`/stores/${storeId}/blog`);
+}

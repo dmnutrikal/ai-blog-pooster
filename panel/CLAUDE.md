@@ -54,8 +54,10 @@ where published translations live.
 - App-level secrets (OpenAI/Claude API keys, `CREDENTIALS_KEY`) only in environment variables; store Client secrets only
   encrypted in the store repository. Never in code, fixtures, logs or error messages. The access token lives in memory only.
 - Tests use recorded or hand-written Shopify responses; they must run without network access.
-- The panel never writes to `topics`, `products` or `articles`; those belong to the blog pipeline (`../src`).
-  Migrations are additive and must leave those tables untouched (the PGlite test checks this).
+- The panel never updates or deletes rows in `topics`, `products` or `articles`; those belong to the blog
+  pipeline (`../src`). One exception: the blog page INSERTS new pending `topics` rows (user-entered article
+  titles, `addBlogTopics`). Migrations are additive and must leave those tables untouched (the PGlite test
+  checks this).
 - A store's `slug` equals `topics.store`/`articles.store` and its `../stores/<slug>/` folder; never rename one.
 - The panel has no login yet, so `dev`/`start` bind to 127.0.0.1. Do not expose it until Supabase Auth is in place;
   then every server action must check the session.
