@@ -11,6 +11,7 @@
 // but registers nothing to Shopify. Adopt translates nothing and writes nothing to Shopify.
 
 import { parseArgs } from "node:util";
+import { SYNC_GROUPS, typesForGroups } from "../src/lib/translate/resource-groups";
 import { runStoreSync } from "../src/lib/translate/run-sync";
 import { findStore } from "./_shared";
 
@@ -18,6 +19,9 @@ const { values: args } = parseArgs({
   options: {
     store: { type: "string" },
     locale: { type: "string" },
+    // Group keys (products, collections, pages, blog, navigation, metaobjects, theme,
+    // images, email, checkout) or raw TranslatableResourceType values. Default: everything.
+    types: { type: "string" },
     max: { type: "string" },
     write: { type: "boolean", default: false },
     adopt: { type: "boolean", default: false },
@@ -34,11 +38,17 @@ async function main() {
   if (maxResources !== undefined && (!Number.isInteger(maxResources) || maxResources < 1)) throw new Error("--max expects a positive integer");
 
   if (args.write && args.adopt) throw new Error("--write and --adopt do not mix");
+  let types: string[] | undefined;
+  if (args.types) {
+    const keys = args.types.split(",").map((s) => s.trim()).filter(Boolean);
+    types = [...new Set(keys.flatMap((k) => (SYNC_GROUPS.some((g) => g.key === k) ? typesForGroups([k]) : [k.toUpperCase()])))];
+  }
   console.log(`${args.adopt ? "Adopt current state" : args.write ? "SYNC (will write!)" : "Dry run"} on ${store.name}${locales ? ` → ${locales.join(", ")}` : ""}${maxResources ? ` (first ${maxResources} products)` : ""}`);
 
   const { jobId, summary } = await runStoreSync(store, {
     dryRun: !args.write,
     adopt: args.adopt,
+    types,
     locales,
     maxResources,
     triggeredBy: "cli",

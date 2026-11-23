@@ -170,7 +170,10 @@ export async function syncStore(
       for (const node of page.nodes) {
         if (options.maxResources !== undefined && seen >= options.maxResources) break paging;
         seen++;
-        const label = node.translatableContent.find((c) => c.key === "title")?.value ?? null;
+        const label =
+          node.translatableContent.find((c) => c.key === "title")?.value ??
+          node.translatableContent.find((c) => c.value)?.value?.slice(0, 80) ??
+          null;
         const dbResourceId = await db.upsertResource(store.id, node.resourceId, resourceType, label);
         const states = new Map(node.translations.map((t) => [t.key, t]));
 

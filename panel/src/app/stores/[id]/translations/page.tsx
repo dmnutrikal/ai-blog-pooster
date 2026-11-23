@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { setTranslateWeeklyEnabled, startTranslationSync } from "@/app/actions";
 import { formatDate } from "@/app/ConnectionResult";
 import { coverage, jobFailures, listJobs, type TranslationJob } from "@/lib/translate/db";
+import { SYNC_GROUPS } from "@/lib/translate/resource-groups";
 import { storeRepository } from "@/lib/stores/repository";
 import { AutoRefresh } from "./AutoRefresh";
 
@@ -40,8 +41,9 @@ export default async function TranslationsPage({ params }: { params: Promise<{ i
       <div className="card">
         <h2>Ръчно синхронизиране</h2>
         <p className="small muted">
-          Обхожда продуктите, превежда липсващите и остарелите полета (заглавия, описания, SEO) към избраните езици и пази резервно копие преди
-          всеки запис. Заключените преводи не се пипат; невалидните предложения не се записват.
+          Обхожда цялото преводимо съдържание на магазина — продукти, колекции, страници, блог, менюта, тема и т.н. — превежда липсващото и
+          промененото към избраните езици и пази резервно копие преди всеки запис. Заключените преводи не се пипат; невалидните предложения не се
+          записват.
         </p>
         {running ? (
           <p>
@@ -58,10 +60,23 @@ export default async function TranslationsPage({ params }: { params: Promise<{ i
                 <input id="locales" name="locales" placeholder="de, fr" />
               </div>
               <div className="field">
-                <label htmlFor="max">Макс. продукти (празно = всички)</label>
+                <label htmlFor="max">Макс. записи от тип (празно = всички)</label>
                 <input id="max" name="max" type="number" min={1} placeholder="напр. 3 за проба" />
               </div>
             </div>
+            <fieldset className="field" style={{ border: "none", padding: 0 }}>
+              <legend className="small muted">Какво да се синхронизира (нищо отбелязано = всичко)</legend>
+              <div className="grid">
+                {SYNC_GROUPS.map((g) => (
+                  <div className="toggle" key={g.key}>
+                    <input id={`group-${g.key}`} name="groups" value={g.key} type="checkbox" />
+                    <label htmlFor={`group-${g.key}`} className="small">
+                      {g.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </fieldset>
             <div className="actions">
               <button className="btn" type="submit" name="mode" value="dry">
                 Пробно (без запис)

@@ -171,12 +171,16 @@ export async function startTranslationSync(storeId: string, formData: FormData):
     .filter(Boolean);
   const maxRaw = Number(formData.get("max") ?? "");
   const maxResources = Number.isInteger(maxRaw) && maxRaw > 0 ? maxRaw : undefined;
+  const { typesForGroups } = await import("@/lib/translate/resource-groups");
+  const groups = formData.getAll("groups").map(String);
+  const types = groups.length ? typesForGroups(groups) : undefined;
 
-  await audit(storeId, "translate.sync_started", { write, adopt, locales, maxResources });
+  await audit(storeId, "translate.sync_started", { write, adopt, locales, maxResources, groups });
   // Fire and forget: the job row carries progress and the final error, the page polls.
   void runStoreSync(store, {
     dryRun: !write,
     adopt,
+    types,
     locales: locales.length ? locales : undefined,
     maxResources,
     triggeredBy: "panel",

@@ -149,7 +149,7 @@ export interface TranslationJob {
   kind: string;
   status: "queued" | "running" | "completed" | "failed" | "cancelled";
   dry_run: boolean;
-  params: { resourceType?: string; locales?: string[]; maxResources?: number; adopt?: boolean };
+  params: { types?: string[]; resourceType?: string; locales?: string[]; maxResources?: number; adopt?: boolean };
   scanned: number;
   translated: number;
   failed: number;
