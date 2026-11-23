@@ -15,7 +15,8 @@ where published translations live.
 - `src/lib/supabase.ts`, `src/lib/audit.ts` — Supabase client, audit log
 - `src/lib/crypto.ts` — AES-GCM for Client secrets at rest
 - `src/lib/translate/` — engine interface, shared prompt, OpenAI and Claude engines (`factory.ts` picks one
-  from `TRANSLATE_ENGINE`), masking of protected text, validation, batch pipeline
+  from `TRANSLATE_ENGINE`), masking of protected text, validation, batch pipeline; `sync.ts` (engine with
+  Shopify/DB ports), `db.ts` (Supabase port + job/coverage reads), `run-sync.ts` (wires a real store)
 - `src/app/` — Next.js panel: Магазини, Добави магазин, store page (connection test, blog and write toggles), blog page
 - `scripts/` — worker entry points and Phase 0 checks; run with `tsx`
 - `../supabase/migrations/` — the shared database schema (one Supabase project for blog and translation)
@@ -27,6 +28,8 @@ where published translations live.
 - `npm run gen-key` — a new `CREDENTIALS_KEY`
 - `npm run import-stores -- [--apply] [--paused slug] [--store slug]` — one-time import of the blog pipeline stores from `../.env`; dry run without `--apply`
 - `npm test`, `npm run typecheck`
+- `npm run sync -- [--store slug] [--locale de,fr] [--max n] [--write]` — product translation sync (dry run
+  without `--write`; proposals land as `pending_review`). Also on the store's Преводи page in the panel.
 - `npm run phase0:e2e -- [--store domain|name] --locale de [--product gid] [--write] [--record]`
 - `npm run phase0:count -- [--store domain|name] [--type ARTICLE]`
 

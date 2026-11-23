@@ -124,3 +124,32 @@ export const TRANSLATIONS_REGISTER = /* GraphQL */ `
     }
   }
 `;
+
+// One page of translatable resources with their content values and the state of one
+// locale's translations. The sync walks this per target locale. Validated against 2026-10.
+export const TRANSLATABLE_RESOURCES_SYNC = /* GraphQL */ `
+  query TranslatableResourcesSync($resourceType: TranslatableResourceType!, $locale: String!, $first: Int!, $after: String) {
+    translatableResources(resourceType: $resourceType, first: $first, after: $after) {
+      nodes {
+        resourceId
+        translatableContent {
+          key
+          value
+          digest
+          locale
+          type
+        }
+        translations(locale: $locale) {
+          key
+          value
+          outdated
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;

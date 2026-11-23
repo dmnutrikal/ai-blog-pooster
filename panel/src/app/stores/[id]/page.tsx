@@ -98,9 +98,14 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
               </span>
             </label>
           </div>
-          <button className="btn" type="submit">
-            Запази
-          </button>
+          <div className="actions">
+            <button className="btn" type="submit">
+              Запази
+            </button>
+            <a className="btn" href={`/stores/${store.id}/translations`}>
+              Преводи и синхронизиране
+            </a>
+          </div>
         </form>
       </div>
 

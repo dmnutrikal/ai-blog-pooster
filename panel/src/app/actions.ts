@@ -147,3 +147,37 @@ export async function deleteStore(storeId: string, formData: FormData): Promise<
   revalidatePath("/");
   redirect("/");
 }
+
+// --- Превод: ръчно синхронизиране -------------------------------------------
+
+// Starts a product sync in the background; progress lands in translation_jobs and the
+// Преводи page polls it. Refuses to start while another job for the store runs.
+export async function startTranslationSync(storeId: string, formData: FormData): Promise<void> {
+  const { listJobs } = await import("@/lib/translate/db");
+  const { runStoreSync } = await import("@/lib/translate/run-sync");
+
+  const store = await storeRepository().get(storeId);
+  if (!store) return;
+  const [latest] = await listJobs(storeId, 1);
+  if (latest?.status === "running") return;
+
+  const write = formData.get("mode") === "write";
+  if (write && !store.writesEnabled) return;
+  const locales = String(formData.get("locales") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const maxRaw = Number(formData.get("max") ?? "");
+  const maxResources = Number.isInteger(maxRaw) && maxRaw > 0 ? maxRaw : undefined;
+
+  await audit(storeId, "translate.sync_started", { write, locales, maxResources });
+  // Fire and forget: the job row carries progress and the final error, the page polls.
+  void runStoreSync(store, {
+    dryRun: !write,
+    locales: locales.length ? locales : undefined,
+    maxResources,
+    triggeredBy: "panel",
+  }).catch(() => {});
+
+  revalidatePath(`/stores/${storeId}/translations`);
+}
