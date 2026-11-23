@@ -161,7 +161,9 @@ export async function startTranslationSync(storeId: string, formData: FormData):
   const [latest] = await listJobs(storeId, 1);
   if (latest?.status === "running") return;
 
-  const write = formData.get("mode") === "write";
+  const mode = formData.get("mode");
+  const write = mode === "write";
+  const adopt = mode === "adopt";
   if (write && !store.writesEnabled) return;
   const locales = String(formData.get("locales") ?? "")
     .split(",")
@@ -170,10 +172,11 @@ export async function startTranslationSync(storeId: string, formData: FormData):
   const maxRaw = Number(formData.get("max") ?? "");
   const maxResources = Number.isInteger(maxRaw) && maxRaw > 0 ? maxRaw : undefined;
 
-  await audit(storeId, "translate.sync_started", { write, locales, maxResources });
+  await audit(storeId, "translate.sync_started", { write, adopt, locales, maxResources });
   // Fire and forget: the job row carries progress and the final error, the page polls.
   void runStoreSync(store, {
     dryRun: !write,
+    adopt,
     locales: locales.length ? locales : undefined,
     maxResources,
     triggeredBy: "panel",

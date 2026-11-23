@@ -28,8 +28,10 @@ where published translations live.
 - `npm run gen-key` — a new `CREDENTIALS_KEY`
 - `npm run import-stores -- [--apply] [--paused slug] [--store slug]` — one-time import of the blog pipeline stores from `../.env`; dry run without `--apply`
 - `npm test`, `npm run typecheck`
-- `npm run sync -- [--store slug] [--locale de,fr] [--max n] [--write]` — product translation sync (dry run
-  without `--write`; proposals land as `pending_review`). Also on the store's Преводи page in the panel.
+- `npm run sync -- [--store slug] [--locale de,fr] [--max n] [--write|--adopt]` — product translation sync
+  (dry run without `--write`; proposals land as `pending_review`). `--adopt` accepts the store's current
+  state as the baseline: later runs only touch source text changed after that point (per source digest).
+  Also on the store's Преводи page in the panel. CollagenLab's baseline was adopted on 2026-11-23.
 - `npm run phase0:e2e -- [--store domain|name] --locale de [--product gid] [--write] [--record]`
 - `npm run phase0:count -- [--store domain|name] [--type ARTICLE]`
 

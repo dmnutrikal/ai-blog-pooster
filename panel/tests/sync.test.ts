@@ -25,7 +25,9 @@ interface SavedTranslation extends SaveTranslationPatch {
   locale: string;
 }
 
-function fakeDb(existing: Record<string, { id: number; status: "missing" | "current" | "outdated" | "locked" | "pending_review" | "failed"; value: string | null }> = {}) {
+function fakeDb(
+  existing: Record<string, { id: number; status: "missing" | "current" | "outdated" | "locked" | "pending_review" | "failed"; value: string | null; sourceDigest?: string | null }> = {},
+) {
   let nextId = 1000;
   const saved: SavedTranslation[] = [];
   const backups: { translationId: number; previousValue: string | null }[] = [];
@@ -47,9 +49,9 @@ function fakeDb(existing: Record<string, { id: number; status: "missing" | "curr
         const [key, l] = k.split("@");
         return contentIds.get(key!) === contentId && l === locale;
       });
-      if (hit) return hit[1];
+      if (hit) return { sourceDigest: null, ...hit[1] };
       const prior = [...saved].reverse().find((s) => s.contentId === contentId && s.locale === locale);
-      return prior ? { id: nextId, status: prior.status, value: prior.value ?? null } : null;
+      return prior ? { id: nextId, status: prior.status, value: prior.value ?? null, sourceDigest: prior.sourceDigest ?? null } : null;
     },
     async saveTranslation(contentId, locale, patch) {
       saved.push({ contentId, locale, ...patch });
@@ -186,6 +188,51 @@ describe("syncStore", () => {
     expect(summary.locales).toEqual(["fr"]);
 
     await expect(syncStore({ shopify, engine, db, store }, { jobId: 1, locales: ["xx"] })).rejects.toThrow(/not enabled/);
+  });
+});
+
+describe("adopt mode and the adopted baseline", () => {
+  it("adopt: accepts missing/outdated fields as-is, calls no engine, registers nothing", async () => {
+    const node = product({ translations: [{ key: "title", value: "Altes Kollagen", outdated: true }] });
+    const { shopify, registered } = fakeShopify({ de: [node] });
+    const { db, saved, jobItems } = fakeDb();
+    const engine = new EchoEngine();
+
+    const summary = await syncStore({ shopify, engine, db, store }, { jobId: 1, adopt: true });
+
+    expect(summary.adopted).toBe(3);
+    expect(summary.queued).toBe(0);
+    expect(engine.requests).toHaveLength(0);
+    expect(registered).toHaveLength(0);
+    // The outdated title keeps its store value; its current source digest becomes the baseline.
+    const title = saved.find((s) => s.value === "Altes Kollagen")!;
+    expect(title.status).toBe("current");
+    expect(title.sourceDigest).toBe("d1");
+    expect(jobItems.filter((i) => i.status === "adopted")).toHaveLength(3);
+  });
+
+  it("after adoption a sync queues nothing until the source digest changes", async () => {
+    const node = product({ translations: [{ key: "title", value: "Altes Kollagen", outdated: true }] });
+    const { shopify } = fakeShopify({ de: [node] });
+    const adoptedRows = {
+      "title@de": { id: 1, status: "current" as const, value: "Altes Kollagen", sourceDigest: "d1" },
+      "body_html@de": { id: 2, status: "current" as const, value: null, sourceDigest: "d2" },
+      "handle@de": { id: 3, status: "current" as const, value: null, sourceDigest: "d3" },
+    };
+    const engine = new EchoEngine();
+
+    const unchanged = await syncStore({ shopify, engine, db: fakeDb(adoptedRows).db, store }, { jobId: 1 });
+    expect(unchanged.queued).toBe(0);
+    expect(engine.requests).toHaveLength(0);
+
+    // The source title changed → new digest → it is translated again; the rest stays adopted.
+    const edited = product({
+      translations: [{ key: "title", value: "Altes Kollagen", outdated: true }],
+    });
+    edited.translatableContent[0] = { ...edited.translatableContent[0]!, value: "New collagen powder", digest: "d1-v2" };
+    const second = await syncStore({ shopify: fakeShopify({ de: [edited] }).shopify, engine, db: fakeDb(adoptedRows).db, store }, { jobId: 2 });
+    expect(second.queued).toBe(1);
+    expect(engine.requests[0]!.items.map((i) => i.field)).toEqual(["title"]);
   });
 });
 

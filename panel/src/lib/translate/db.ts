@@ -54,13 +54,14 @@ export class SupabaseSyncDb implements SyncDb {
   async getTranslation(contentId: number, locale: string): Promise<TranslationRow | null> {
     const { data, error } = await this.db()
       .from("translations")
-      .select("id, status, value")
+      .select("id, status, value, source_digest")
       .eq("content_id", contentId)
       .eq("locale", locale)
       .is("market_id", null)
       .maybeSingle();
     if (error) fail("translations select", error);
-    return data as TranslationRow | null;
+    if (!data) return null;
+    return { id: data.id, status: data.status, value: data.value, sourceDigest: data.source_digest };
   }
 
   async saveTranslation(contentId: number, locale: string, patch: SaveTranslationPatch): Promise<number> {
@@ -148,7 +149,7 @@ export interface TranslationJob {
   kind: string;
   status: "queued" | "running" | "completed" | "failed" | "cancelled";
   dry_run: boolean;
-  params: { resourceType?: string; locales?: string[]; maxResources?: number };
+  params: { resourceType?: string; locales?: string[]; maxResources?: number; adopt?: boolean };
   scanned: number;
   translated: number;
   failed: number;

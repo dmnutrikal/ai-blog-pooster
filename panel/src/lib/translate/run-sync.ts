@@ -40,6 +40,7 @@ export function makeSyncShopify(client: ShopifyClient): SyncShopify {
 
 export interface RunSyncOptions {
   dryRun: boolean;
+  adopt?: boolean; // accept the store's current state as the baseline; writes nothing
   resourceType?: string;
   locales?: string[];
   maxResources?: number;
@@ -55,7 +56,7 @@ export async function runStoreSync(store: StoreRecord, options: RunSyncOptions):
 
   const jobId = await createJob(store.id, {
     dryRun: options.dryRun,
-    params: { resourceType: options.resourceType ?? "PRODUCT", locales: options.locales, maxResources: options.maxResources },
+    params: { resourceType: options.resourceType ?? "PRODUCT", locales: options.locales, maxResources: options.maxResources, adopt: options.adopt },
     triggeredBy: options.triggeredBy,
   });
 
@@ -64,7 +65,8 @@ export async function runStoreSync(store: StoreRecord, options: RunSyncOptions):
       { shopify: makeSyncShopify(client), engine, db, store: { id: store.id, name: store.name, writesEnabled: store.writesEnabled } },
       {
         jobId,
-        write: !options.dryRun,
+        write: !options.dryRun && !options.adopt,
+        adopt: options.adopt,
         resourceType: options.resourceType,
         locales: options.locales,
         maxResources: options.maxResources,

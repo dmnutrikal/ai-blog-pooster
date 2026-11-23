@@ -4,9 +4,11 @@
 //   npm run sync -- --store collagenlab --locale de,fr        only these locales
 //   npm run sync -- --store collagenlab --max 3               first 3 products per locale
 //   npm run sync -- --store collagenlab --locale de --write   writes; needs "Разреши запис" in the panel
+//   npm run sync -- --store collagenlab --adopt               accept the store's current state as the
+//                                                             baseline; later runs only pick up changes
 //
 // A dry run translates and stores proposals as pending_review in the shared database,
-// but registers nothing to Shopify.
+// but registers nothing to Shopify. Adopt translates nothing and writes nothing to Shopify.
 
 import { parseArgs } from "node:util";
 import { runStoreSync } from "../src/lib/translate/run-sync";
@@ -18,6 +20,7 @@ const { values: args } = parseArgs({
     locale: { type: "string" },
     max: { type: "string" },
     write: { type: "boolean", default: false },
+    adopt: { type: "boolean", default: false },
   },
 });
 
@@ -30,10 +33,12 @@ async function main() {
   const maxResources = args.max ? Number(args.max) : undefined;
   if (maxResources !== undefined && (!Number.isInteger(maxResources) || maxResources < 1)) throw new Error("--max expects a positive integer");
 
-  console.log(`${args.write ? "SYNC (will write!)" : "Dry run"} on ${store.name}${locales ? ` → ${locales.join(", ")}` : ""}${maxResources ? ` (first ${maxResources} products)` : ""}`);
+  if (args.write && args.adopt) throw new Error("--write and --adopt do not mix");
+  console.log(`${args.adopt ? "Adopt current state" : args.write ? "SYNC (will write!)" : "Dry run"} on ${store.name}${locales ? ` → ${locales.join(", ")}` : ""}${maxResources ? ` (first ${maxResources} products)` : ""}`);
 
   const { jobId, summary } = await runStoreSync(store, {
     dryRun: !args.write,
+    adopt: args.adopt,
     locales,
     maxResources,
     triggeredBy: "cli",
@@ -46,6 +51,7 @@ async function main() {
   console.log(`  translated:         ${summary.translated}${args.write ? ` (written: ${summary.written})` : " (proposals, pending_review)"}`);
   console.log(`  failed validation:  ${summary.failed}`);
   console.log(`  locked, untouched:  ${summary.skippedLocked}`);
+  if (summary.adopted) console.log(`  adopted as-is:      ${summary.adopted}`);
   console.log(`  tokens: ${summary.usage.inputTokens} in / ${summary.usage.outputTokens} out · $${summary.usage.costUsd.toFixed(4)}`);
   if (!args.write) console.log("\nNothing was written. Re-run with --write after reviewing.");
 }

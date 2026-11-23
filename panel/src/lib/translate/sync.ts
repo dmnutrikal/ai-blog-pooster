@@ -48,6 +48,7 @@ export interface TranslationRow {
   id: number;
   status: "missing" | "current" | "outdated" | "locked" | "pending_review" | "failed";
   value: string | null;
+  sourceDigest: string | null;
 }
 
 export interface SaveTranslationPatch {
@@ -80,6 +81,10 @@ export interface SyncOptions {
   resourceType?: string; // TranslatableResourceType, default PRODUCT
   locales?: string[]; // default: every published non-primary locale
   write?: boolean;
+  // Adopt mode: instead of translating, mark the store's current state (including fields
+  // Shopify reports as missing or outdated) as the accepted baseline. Later runs then only
+  // pick up source text that changed after this point. Writes nothing to Shopify.
+  adopt?: boolean;
   maxResources?: number; // per locale, for careful first runs
   batchItems?: number;
   batchChars?: number;
@@ -95,6 +100,7 @@ export interface SyncSummary {
   written: number; // fields registered to Shopify
   failed: number; // fields rejected by validation or the engine
   skippedLocked: number;
+  adopted: number; // fields accepted as-is as the baseline (adopt mode)
   usage: { inputTokens: number; outputTokens: number; costUsd: number };
 }
 
@@ -149,6 +155,7 @@ export async function syncStore(
     written: 0,
     failed: 0,
     skippedLocked: 0,
+    adopted: 0,
     usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
   };
 
@@ -194,6 +201,17 @@ export async function syncStore(
             if (!row || row.status !== "current" || row.value !== state.value) {
               await db.saveTranslation(contentId, locale, { value: state.value, status: "current", origin: row ? undefined : "imported", sourceDigest: content.digest });
             }
+            continue;
+          }
+
+          // The store's state for this exact source version was adopted as the baseline:
+          // leave it alone until the source text changes (new digest).
+          if (row?.status === "current" && row.sourceDigest !== null && row.sourceDigest === content.digest) continue;
+
+          if (options.adopt) {
+            const id = await db.saveTranslation(contentId, locale, { value: state?.value ?? null, status: "current", origin: "imported", sourceDigest: content.digest });
+            await db.addJobItem(options.jobId, id, "adopted", null);
+            summary.adopted++;
             continue;
           }
 

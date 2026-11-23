@@ -69,6 +69,9 @@ export default async function TranslationsPage({ params }: { params: Promise<{ i
               <button className="btn btn-danger" type="submit" name="mode" value="write" disabled={!store.writesEnabled} title={store.writesEnabled ? undefined : 'Включете "Разреши запис" на страницата на магазина'}>
                 Синхронизирай и запиши
               </button>
+              <button className="btn" type="submit" name="mode" value="adopt" title="Приема сегашното състояние на магазина за одобрена база; занапред се превежда само променено или ново съдържание. Не пише нищо в магазина.">
+                Приеми сегашните преводи
+              </button>
             </div>
           </form>
         )}
