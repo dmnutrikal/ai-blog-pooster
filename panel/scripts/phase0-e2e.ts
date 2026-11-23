@@ -8,7 +8,7 @@
 
 import { parseArgs } from "node:util";
 import { LATEST_ACTIVE_PRODUCT, SHOP_LOCALES, TRANSLATABLE_RESOURCE, TRANSLATIONS_REGISTER } from "../src/lib/shopify/operations";
-import { ClaudeEngine } from "../src/lib/translate/claude";
+import { engineFromEnv } from "../src/lib/translate/factory";
 import { contentKind, translateBatch } from "../src/lib/translate/pipeline";
 import { connect } from "./_shared";
 
@@ -96,7 +96,7 @@ async function main() {
   console.log(`  current (${locale}):   ${existing?.value ?? "—"}${existing?.outdated ? "  [outdated]" : ""}`);
 
   // Translate
-  const engine = new ClaudeEngine();
+  const engine = engineFromEnv();
   const { items, usage } = await translateBatch(engine, [{ id: KEY, text: content.value, kind, field: KEY }], {
     sourceLocale: primary?.locale ?? content.locale,
     targetLocale: locale,

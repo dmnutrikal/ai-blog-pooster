@@ -3,8 +3,9 @@
 In-house replacement for the T Lab translation app on Nutrikal's Shopify stores (CollagenLab first, GutExpert next).
 Lives in `panel/` of the blog generator repo and shares its Supabase project; the store records here also feed the
 blog pipeline (see `../CLAUDE.md`).
-Reads translatable content through the Admin GraphQL API, translates it with Claude, and writes it back with
-`translationsRegister`. Shopify remains the only place where published translations live.
+Reads translatable content through the Admin GraphQL API, translates it with an LLM (OpenAI by default,
+Claude as the alternative), and writes it back with `translationsRegister`. Shopify remains the only place
+where published translations live.
 
 ## Layout
 
@@ -13,7 +14,8 @@ Reads translatable content through the Admin GraphQL API, translates it with Cla
 - `src/lib/blog/` — read-only queries over the blog pipeline tables (`topics`, `articles`, `blog_runs`)
 - `src/lib/supabase.ts`, `src/lib/audit.ts` — Supabase client, audit log
 - `src/lib/crypto.ts` — AES-GCM for Client secrets at rest
-- `src/lib/translate/` — engine interface, Claude engine, masking of protected text, validation, batch pipeline
+- `src/lib/translate/` — engine interface, shared prompt, OpenAI and Claude engines (`factory.ts` picks one
+  from `TRANSLATE_ENGINE`), masking of protected text, validation, batch pipeline
 - `src/app/` — Next.js panel: Магазини, Добави магазин, store page (connection test, blog and write toggles), blog page
 - `scripts/` — worker entry points and Phase 0 checks; run with `tsx`
 - `../supabase/migrations/` — the shared database schema (one Supabase project for blog and translation)
@@ -41,7 +43,7 @@ Reads translatable content through the Admin GraphQL API, translates it with Cla
   has `writesEnabled` ("Разреши запис" on its page in the panel, off by default). The test store is the first write target; CollagenLab joins in Phase 3, one locale first.
 - Never overwrite a translation with status `locked` (manual edit). Back up the previous value before every write.
 - A translation that fails validation (`src/lib/translate/validate.ts`) is never written; record the reason instead.
-- App-level secrets (Claude API key, `CREDENTIALS_KEY`) only in environment variables; store Client secrets only
+- App-level secrets (OpenAI/Claude API keys, `CREDENTIALS_KEY`) only in environment variables; store Client secrets only
   encrypted in the store repository. Never in code, fixtures, logs or error messages. The access token lives in memory only.
 - Tests use recorded or hand-written Shopify responses; they must run without network access.
 - The panel never writes to `topics`, `products` or `articles`; those belong to the blog pipeline (`../src`).
@@ -51,6 +53,7 @@ Reads translatable content through the Admin GraphQL API, translates it with Cla
   then every server action must check the session.
 - UI: no horizontal scroll at any width; long tables turn into cards on narrow screens. UI text in Bulgarian,
   Shopify field names in English.
-- Claude models: `claude-haiku-5-5` for bulk text, `claude-sonnet-5-5` for product pages. Non-urgent jobs go through
-  the Batch API.
+- Models, per `TRANSLATE_ENGINE`: openai (default) — `gpt-5.6-luna` for bulk text, `gpt-5.6-terra` for product
+  pages (the blog pipeline's models); claude — `claude-haiku-5-5` / `claude-sonnet-5-5`. The prompt and output
+  checks in `src/lib/translate/prompt.ts` are engine-independent. Non-urgent jobs go through the Batch API.
 - One phase per session and per pull request. Plan first, then code.
