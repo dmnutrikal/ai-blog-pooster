@@ -133,13 +133,14 @@ describe("syncStore", () => {
 
     const summary = await syncStore({ shopify, engine, db, store }, { jobId: 1, write: false });
 
-    expect(summary.queued).toBe(3);
-    expect(summary.translated).toBe(3);
+    expect(summary.queued).toBe(2); // the URL-kind handle is baselined, not queued
+    expect(summary.translated).toBe(2);
     expect(summary.written).toBe(0);
     expect(registered).toHaveLength(0);
     const statuses = saved.map((s) => s.status);
     expect(statuses).toContain("pending_review");
-    expect(statuses).not.toContain("current");
+    // Only the URL-kind handle may be marked current (baselined); nothing AI-written is.
+    expect(saved.filter((s) => s.status === "current").every((s) => s.origin === "imported")).toBe(true);
     // Glossary flows into the request.
     expect(engine.requests[0]!.translateAs).toEqual([{ source: "collagen", target: "Kollagen" }]);
   });
@@ -171,13 +172,13 @@ describe("syncStore", () => {
 
     const summary = await syncStore({ shopify, engine, db, store }, { jobId: 1, write: true });
 
-    expect(summary.written).toBe(3);
+    expect(summary.written).toBe(2); // handle is baselined, title + body written
     expect(backups).toContainEqual({ translationId: expect.any(Number), previousValue: "Altes Kollagen" });
     expect(registered).toHaveLength(1);
     expect(registered[0]!.translations).toContainEqual({ key: "title", locale: "de", value: "Kollagen powder", translatableContentDigest: "d1" });
     const final = saved.filter((s) => s.status === "current");
-    expect(final).toHaveLength(3);
-    expect(final.every((s) => s.origin === "ai" && s.writtenAt)).toBe(true);
+    expect(final.filter((s) => s.origin === "ai")).toHaveLength(2);
+    expect(final.filter((s) => s.origin === "ai").every((s) => s.writtenAt)).toBe(true);
   });
 
   it("refuses write mode when the store has writes disabled", async () => {
@@ -224,7 +225,7 @@ describe("adopt mode and the adopted baseline", () => {
 
     const summary = await syncStore({ shopify, engine, db, store }, { jobId: 1, adopt: true });
 
-    expect(summary.adopted).toBe(3);
+    expect(summary.adopted).toBe(2); // the handle becomes baseline via the URL rule instead
     expect(summary.queued).toBe(0);
     expect(engine.requests).toHaveLength(0);
     expect(registered).toHaveLength(0);
@@ -232,7 +233,7 @@ describe("adopt mode and the adopted baseline", () => {
     const title = saved.find((s) => s.value === "Altes Kollagen")!;
     expect(title.status).toBe("current");
     expect(title.sourceDigest).toBe("d1");
-    expect(jobItems.filter((i) => i.status === "adopted")).toHaveLength(3);
+    expect(jobItems.filter((i) => i.status === "adopted")).toHaveLength(2);
   });
 
   it("after adoption a sync queues nothing until the source digest changes", async () => {

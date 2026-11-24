@@ -243,6 +243,14 @@ export async function syncStore(
         // leave it alone until the source text changes (new digest).
         if (row?.status === "current" && row.sourceDigest !== null && row.sourceDigest === e.content.digest) continue;
 
+        // URL-kind fields (handles, file references) are never rewritten, and Shopify
+        // rejects registering a handle identical to the source — record the source value
+        // as the baseline instead of queueing them.
+        if (e.kind === "url") {
+          mirrors.push({ contentId, patch: { value: state?.value ?? e.content.value, status: "current", origin: "imported", sourceDigest: e.content.digest } });
+          continue;
+        }
+
         if (options.adopt) {
           adopts.push({ contentId, patch: { value: state?.value ?? null, status: "current", origin: "imported", sourceDigest: e.content.digest } });
           continue;
