@@ -49,7 +49,7 @@ export default async function StoresPage() {
           <p>Още няма магазини в панела.</p>
         </div>
       ) : (
-        <div className="grid">
+        <div className="store-list">
           {stores.map((s) => (
             <a key={s.id} className="card store-card" href={`/stores/${s.id}`}>
               <h2>{s.name}</h2>

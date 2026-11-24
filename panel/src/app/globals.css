@@ -500,3 +500,10 @@ details summary {
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.85rem;
 }
+
+/* Store cards on the home page: one per row. */
+.store-list {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
