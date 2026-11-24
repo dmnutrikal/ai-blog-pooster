@@ -149,10 +149,30 @@ h2 {
 }
 
 .actions {
-  display: flex;
-  flex-wrap: wrap;
+  /* Side-by-side buttons all take the width of the longest one. */
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 0.5rem;
   align-items: center;
+  max-width: 100%;
+}
+
+.actions .btn {
+  text-align: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .actions {
+    display: grid;
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+    width: 100%;
+  }
+  .actions .btn {
+    white-space: normal;
+  }
 }
 
 .btn {
@@ -467,9 +487,9 @@ details summary {
 }
 
 /* Job history rows with a status rail. */
-.job-row {
+.rows > li.job-row {
   border-left: 3px solid var(--border);
-  padding-left: 0.75rem;
+  padding-left: 0.9rem;
 }
 
 .job-row.job-ok { border-left-color: var(--ok); }
