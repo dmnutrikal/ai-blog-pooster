@@ -162,3 +162,26 @@ describe("structured content (rich text, text lists)", () => {
     expect(contentKind("JSON")).toBeNull();
   });
 });
+
+describe("rich_text fields that actually hold HTML", () => {
+  it("translates them as HTML with tag validation instead of failing", async () => {
+    const engine = new FakeEngine((t) => t.replace("Use", "Verwenden Sie"));
+    const out = await translateBatch(
+      engine,
+      [{ id: "t1", text: "<p>Use the scoop</p>", kind: "rich_text" }],
+      { sourceLocale: "en", targetLocale: "de", neverTranslate: [] },
+    );
+    expect(out.items[0]).toEqual({ id: "t1", ok: true, value: "<p>Verwenden Sie the scoop</p>" });
+    expect(engine.lastRequest!.items[0]!.kind).toBe("html");
+  });
+
+  it("still rejects HTML output with changed tags", async () => {
+    const engine = new FakeEngine(() => "no tags at all");
+    const out = await translateBatch(
+      engine,
+      [{ id: "t2", text: "<p>Use the scoop</p>", kind: "rich_text" }],
+      { sourceLocale: "en", targetLocale: "de", neverTranslate: [] },
+    );
+    expect(out.items[0]!.ok).toBe(false);
+  });
+});

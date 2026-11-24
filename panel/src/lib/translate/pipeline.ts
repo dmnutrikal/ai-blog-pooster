@@ -42,6 +42,7 @@ export async function translateBatch(
   const flat = new Map<string, PlannedPart>(); // engineId → masked part (plain items have one part)
   const structured = new Map<string, { exploded: ExplodedStructure; partIds: string[] }>();
   const preFailed = new Map<string, ValidationIssue[]>();
+  const htmlFallback = new Set<string>(); // rich_text fields whose value turned out to be HTML
 
   for (const item of items) {
     if (item.kind === "rich_text" || item.kind === "list_text") {
@@ -49,6 +50,15 @@ export async function translateBatch(
       try {
         exploded = explodeStructured(item.kind, item.text);
       } catch (err) {
+        // Theme "richtext" settings declare RICH_TEXT_FIELD but actually hold HTML.
+        // Translate those as HTML; anything else malformed stays a structure failure.
+        if (item.kind === "rich_text" && item.text.trimStart().startsWith("<")) {
+          const m = mask(item.text, neverTranslate);
+          flat.set(item.id, { engineId: item.id, maskedText: m.text, tokens: m.tokens });
+          toEngine.push({ id: item.id, kind: "html", field: item.field, text: m.text });
+          htmlFallback.add(item.id);
+          continue;
+        }
         preFailed.set(item.id, [{ code: "structure", message: `Invalid ${item.kind} JSON: ${err instanceof Error ? err.message : String(err)}` }]);
         continue;
       }
@@ -95,7 +105,7 @@ export async function translateBatch(
 
     const plan = structured.get(item.id);
     if (!plan) {
-      const r = partResult(item.id, item.kind);
+      const r = partResult(item.id, htmlFallback.has(item.id) ? "html" : item.kind);
       return r.ok ? { id: item.id, ok: true, value: r.value } : { id: item.id, ok: false, issues: r.issues };
     }
 
