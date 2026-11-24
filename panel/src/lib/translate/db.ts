@@ -281,16 +281,15 @@ export async function jobFailures(jobId: number, limit = 30, db: SupabaseClient 
 
 export type Coverage = Map<string, Record<TranslationRow["status"], number>>;
 
+// Aggregated in the database (translation_coverage function) — the raw table holds tens
+// of thousands of rows per store, past PostgREST's 1000-row page.
 export async function coverage(storeId: string, db: SupabaseClient = supabase()): Promise<Coverage> {
-  const { data, error } = await db
-    .from("translations")
-    .select("locale, status, translation_contents!inner(translation_resources!inner(store_id))")
-    .eq("translation_contents.translation_resources.store_id", storeId);
-  if (error) fail("translations coverage", error);
+  const { data, error } = await db.rpc("translation_coverage", { p_store: storeId });
+  if (error) fail("translation_coverage", error);
   const result: Coverage = new Map();
-  for (const row of data ?? []) {
+  for (const row of (data ?? []) as { locale: string; status: TranslationRow["status"]; cnt: number }[]) {
     const byStatus = result.get(row.locale) ?? { missing: 0, current: 0, outdated: 0, locked: 0, pending_review: 0, failed: 0 };
-    byStatus[row.status as TranslationRow["status"]]++;
+    byStatus[row.status] += Number(row.cnt);
     result.set(row.locale, byStatus);
   }
   return result;
